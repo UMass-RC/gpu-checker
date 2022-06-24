@@ -28,6 +28,12 @@ def str_to_bool(string):
         return False
     return None
 
+def indent(string: str, n=1):
+    for i in range(n):
+        string = '\t' + string # add tab to first line
+        string = string.replace('\n', '\n\t') # add tab to all other lines
+    return string
+
 def multiline_str(*argv: str) -> str:
     """
     concat the strings and separate them with newlines
@@ -108,34 +114,18 @@ def find_slurm_nodes(states: str, partitions: str) -> None:
     shell_output_lines = purge_element(shell_output_lines, '')
     nodes = [line.split(' ')[0] for line in shell_output_lines]
     if len(nodes) == 0:
-        print(f"no nodes found! {command}")
+        print(f"no nodes found! `{command}`")
     return nodes
 
 def drain_node(node: str, reason: str, do_send_email=True):
     """"
     tell slurm to put specified node into DRAINING state
     """
-    command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
+    #command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
+    command_results = ShellRunner(f"scontrol update nodename={node} state=drain")
     success = command_results.success
     command_report = str(command_results)
-
-    if do_send_email:
-        email_to = CONFIG['email']['to']
-        email_from = CONFIG['email']['from']
-        if success:
-            send_email(
-                email_to,
-                email_from,
-                f"gpu-checker has drained node {node}",
-                command_report
-            )
-        else:
-            send_email(
-                email_to,
-                email_from,
-                f"ACTION REQUIRED: gpu-checker wanted to drain node {node}, but failed",
-                command_report
-            )
+    return success, command_report
 
 def check_gpu(node: str, do_send_email=True) -> bool:
     """
@@ -155,20 +145,7 @@ def check_gpu(node: str, do_send_email=True) -> bool:
     ssh_exit_code = shell_output_lines[-1]
 
     success = command_results.success and int(ssh_exit_code) == 0
-
-    if not success and do_send_email:
-        email_to = CONFIG['email']['to']
-        email_from = CONFIG['email']['from']
-        send_email(
-            email_to,
-            email_from,
-            f"gpu-checker has detected an error on node {node}",
-            command_report
-        )
-
-    if success:
-        print(f"gpu works on node {node}")
-    return success
+    return success, command_report
 
 def send_email(to: str, _from: str, subject: str, body: str):
     """
@@ -176,10 +153,11 @@ def send_email(to: str, _from: str, subject: str, body: str):
     """
     body = multiline_str(
         body,
+        '',
         CONFIG['email']['signature']
     )
     print(
-        "sending email:___________________________________",
+        "sending email:_______________________________________________________________",
         f"to: {to}",
         f"from: {_from}",
         f"subject: {subject}",
@@ -244,9 +222,28 @@ if __name__=="__main__":
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     while True:
         for node in find_slurm_nodes(states, partitions):
-            gpu_works = check_gpu(node, do_send_email=do_send_email)
+            gpu_works, check_report = check_gpu(node)
             if not gpu_works:
-                drain_node(node, 'nvidia-smi failure', do_send_email=do_send_email)
-                pass
+                drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
+                if do_send_email:
+                    full_report = multiline_str(
+                        "gpu check:",
+                        indent(check_report),
+                        '',
+                        "drain operation:",
+                        indent(drain_report)
+                    )
+                    subject = f"gpu-checker has found an error on {node}"
+                    if not drain_success:
+                        subject = subject + " and FAILED to drain the node"
+
+                    email_to = CONFIG['email']['to']
+                    email_from = CONFIG['email']['from']
+                    send_email(
+                        email_to,
+                        email_from,
+                        subject,
+                        full_report
+                    )
             # each loop takes about 5 seconds on its own, most of the delay is the ssh command
-            time.sleep(60)
+            #time.sleep(60)
