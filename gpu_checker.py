@@ -260,6 +260,5 @@ if __name__=="__main__":
                         subject,
                         full_report
                     )
-            # TODO uncomment me
             # each loop takes about 5 seconds on its own, most of the delay is the ssh command
-                #time.sleep(60)
+                time.sleep(60)
