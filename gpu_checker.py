@@ -22,14 +22,14 @@ import re
 CONFIG_FILE_PATH = '/opt/gpu-checker/secretfile.txt'
 CONFIG = None
 
-def str_to_bool(string):
+def str_to_bool(string) -> bool:
     if string.lower() in ['true', '1', 't', 'y', 'yes']:
         return True
     if string.lower() in ['false', '0', 'f', 'n', 'no']:
         return False
     return None
 
-def indent(string: str, n=1):
+def indent(string: str, n=1) -> str:
     for i in range(n):
         string = '\t' + string # add tab to first line
         string = string.replace('\n', '\n\t') # add tab to all other lines
@@ -56,22 +56,6 @@ class ShellRunner:
     and if you use str(your_shell_runner), you get a formatted report of all the above
     """
     def __init__(self, command):
-        # these should all get defined by self.run_shell_command
-        self.last_shell_output = ''
-        self.shell_error = ''
-        self.exit_code = -1
-        self.command_report = ''
-        self.success = None
-
-        self.run_shell_command(command)
-
-    def __str__(self):
-        return self.command_report
-
-    def run_shell_command(self, command) -> None:
-        """
-        runs the command, defines the variables, quits
-        """
         process = subprocess.run(
             command,
             capture_output=True,
@@ -96,6 +80,8 @@ class ShellRunner:
             "exit code:",
             self.exit_code
         )
+    def __str__(self):
+        return self.command_report
 
 def find_slurm_nodes(partitions: str) -> None:
     """"
@@ -120,7 +106,7 @@ def find_slurm_nodes(partitions: str) -> None:
 
 def do_check_node(node: str):
     """
-    do I want to check this node?
+    do I want to check this node? Based on node states, states_to_check and states_not_to_check
     if a node has at least one state_to_check, then check
     unless it has any state_not_to_check, then instant return False
     """
@@ -131,9 +117,8 @@ def do_check_node(node: str):
     command_results = ShellRunner(f"scontrol show node {node}")
     command_output = command_results.shell_output
     # TODO catch node not found
-    states_regex = r"State=(\S*)"
-    states_str = re.search(states_regex, command_output).group(1)
-    states = states_str.split('+')
+    # scontrol has states delimited by '+'
+    states = re.search(r"State=(\S*)", command_output).group(1).split('+')
     #print(states)
     #print(states_to_check)
     #print(states_not_to_check)
@@ -146,20 +131,24 @@ def do_check_node(node: str):
                 do_check = True
     return do_check
 
-def drain_node(node: str, reason: str, do_send_email=True):
+def drain_node(node: str, reason: str, do_send_email=True) -> tuple[bool, str]:
     """"
     tell slurm to put specified node into DRAINING state
+    returns True if it works, false if it doesn't
+    also returns formatted report of the operation
     """
+    # TODO uncomment this when I know error handling works
     #command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
     command_results = ShellRunner(f"scontrol update nodename={node} state=drain")
     success = command_results.success
     command_report = str(command_results)
     return success, command_report
 
-def check_gpu(node: str, do_send_email=True) -> bool:
+def check_gpu(node: str, do_send_email=True) -> tuple[bool, str]:
     """
     ssh into node and run `nvidia-smi`
     returns True if it works, false if it doesn't
+    also returns formatted report of the operation
     """
     ssh_user = CONFIG['ssh']['user']
     ssh_privkey = CONFIG['ssh']['keyfile']
@@ -176,7 +165,7 @@ def check_gpu(node: str, do_send_email=True) -> bool:
     success = command_results.success and int(ssh_exit_code) == 0
     return success, command_report
 
-def send_email(to: str, _from: str, subject: str, body: str):
+def send_email(to: str, _from: str, subject: str, body: str) -> None:
     """
     send an email using an SMTP server on localhost
     """
@@ -252,30 +241,34 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions):
+            # TODO deleteme
             print(node, do_check_node(node))
             if do_check_node(node):
                 gpu_works, check_report = check_gpu(node)
-                if not gpu_works:
-                    drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
-                    if do_send_email:
-                        full_report = multiline_str(
-                            "gpu check:",
-                            indent(check_report),
-                            '',
-                            "drain operation:",
-                            indent(drain_report)
-                        )
-                        subject = f"gpu-checker has found an error on {node}"
-                        if not drain_success:
-                            subject = subject + " and FAILED to drain the node"
+                if gpu_works:
+                    continue
+                # if not gpu_works:
+                drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
+                if do_send_email:
+                    full_report = multiline_str(
+                        "gpu check:",
+                        indent(check_report),
+                        '',
+                        "drain operation:",
+                        indent(drain_report)
+                    )
+                    subject = f"gpu-checker has found an error on {node}"
+                    if not drain_success:
+                        subject = subject + " and FAILED to drain the node"
 
-                        email_to = CONFIG['email']['to']
-                        email_from = CONFIG['email']['from']
-                        send_email(
-                            email_to,
-                            email_from,
-                            subject,
-                            full_report
-                        )
-                # each loop takes about 5 seconds on its own, most of the delay is the ssh command
+                    email_to = CONFIG['email']['to']
+                    email_from = CONFIG['email']['from']
+                    send_email(
+                        email_to,
+                        email_from,
+                        subject,
+                        full_report
+                    )
+            # TODO uncomment me
+            # each loop takes about 5 seconds on its own, most of the delay is the ssh command
                 #time.sleep(60)
