@@ -98,7 +98,7 @@ def find_slurm_nodes(partitions: str) -> None:
     if not success:
         raise Exception(command_report) # barf
 
-    nodes = [line.split(' ')[0] for line in remove_empty_lines(shell_output)]
+    nodes = [line.split(' ')[0] for line in remove_empty_lines(shell_output).splitlines()]
     if len(nodes) == 0:
         raise Exception(f"no nodes found! `{command}`")
 
