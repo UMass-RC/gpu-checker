@@ -69,17 +69,16 @@ class ShellRunner:
         self.success = self.exit_code == 0
         self.command_report = multiline_str(
             "command:",
-            command,
+            indent(command),
             f"command success: {self.success}",
             '',
             "stdout:",
-            self.shell_output,
+            indent(self.shell_output),
             '',
             "stderr:",
-            self.shell_error,
+            indent(self.shell_error),
             '',
-            "exit code:",
-            self.exit_code
+            f"exit code: {self.exit_code}",
         )
     def __str__(self):
         return self.command_report
@@ -120,9 +119,6 @@ def do_check_node(node: str):
     # TODO catch node not found
     # scontrol has states delimited by '+'
     states = re.search(r"State=(\S*)", command_output).group(1).split('+')
-    #print(states)
-    #print(states_to_check)
-    #print(states_not_to_check)
     for state in states:
         for bad_state in states_not_to_check:
             if state.lower() == bad_state.lower():
@@ -132,20 +128,18 @@ def do_check_node(node: str):
                 do_check = True
     return do_check
 
-def drain_node(node: str, reason: str, do_send_email=True) -> Tuple[bool, str]:
+def drain_node(node: str, reason: str) -> Tuple[bool, str]:
     """"
     tell slurm to put specified node into DRAINING state
     returns True if it works, false if it doesn't
     also returns formatted report of the operation
     """
-    # TODO uncomment this when I know error handling works
-    #command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
-    command_results = ShellRunner(f"scontrol update nodename={node} state=drain")
+    command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
     success = command_results.success
     command_report = str(command_results)
     return success, command_report
 
-def check_gpu(node: str, do_send_email=True) -> Tuple[bool, str]:
+def check_gpu(node: str) -> Tuple[bool, str]:
     """
     ssh into node and run `nvidia-smi`
     returns True if it works, false if it doesn't
@@ -242,11 +236,11 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions):
-            # TODO deleteme
-            print(node, do_check_node(node))
+            #print(node, do_check_node(node))
             if do_check_node(node):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
+                    print(f"{node} gpu works")
                     continue
                 # if not gpu_works:
                 drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
