@@ -157,6 +157,8 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     shell_output = command_results.shell_output
     command_report = str(command_results)
 
+    print(shell_output)
+
     # find exit code that was put into stdout when I said `echo $?`
     #shell_output_lines = [line.replace('\n', '') for line in shell_output.split('\n')]
     #shell_output_lines = purge_element(shell_output_lines, '')
