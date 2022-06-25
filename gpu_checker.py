@@ -51,12 +51,12 @@ def remove_empty_lines(string: str) -> str:
     return os.linesep.join([line for line in string.splitlines() if line])
 
 def purge_element(_list: list, elem_to_purge) -> list:
-    return list(filter(lambda elem: elem != elem_to_purge, _list))
+    return [elem for elem in _list if elem != elem_to_purge]
 
 class ShellRunner:
     """
     spawn this with a shell command, then you have access to stdout, stderr, exit code,
-    along with a boolean of whether or not the command was a success
+    along with a boolean of whether or not the command was a success (exit code 0)
     and if you use str(your_shell_runner), you get a formatted report of all the above
     """
     def __init__(self, command):
@@ -73,22 +73,20 @@ class ShellRunner:
         self.command_report = multiline_str(
             "command:",
             indent(command),
-            f"command success: {self.success}",
+            f"exit code: {self.exit_code}",
             '',
             "stdout:",
             indent(self.shell_output),
             '',
             "stderr:",
             indent(self.shell_error),
-            '',
-            f"exit code: {self.exit_code}",
         )
     def __str__(self):
         return self.command_report
 
 def find_slurm_nodes(partitions: str) -> None:
     """"
-    return a list of node names that meet the specified partitions
+    return a list of node names that are in the specified partitions
     partitions is a comma delimited string
     """
     command = f"sinfo --partition={partitions} -N --noheader"
@@ -100,11 +98,10 @@ def find_slurm_nodes(partitions: str) -> None:
     if not success:
         raise Exception(command_report) # barf
 
-    shell_output_lines = [line.replace('\n', '') for line in shell_output.split('\n')]
-    shell_output_lines = purge_element(shell_output_lines, '')
-    nodes = [line.split(' ')[0] for line in shell_output_lines]
+    nodes = [line.split(' ')[0] for line in remove_empty_lines(shell_output)]
     if len(nodes) == 0:
-        print(f"no nodes found! `{command}`")
+        raise Exception(f"no nodes found! `{command}`")
+
     return nodes
 
 def do_check_node(node: str):
@@ -239,7 +236,7 @@ if __name__=="__main__":
             if do_check_node(node):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
-                    print(f"{node} gpu works")
+                    print(f"{node} works")
                     continue
                 # if not gpu_works:
                 drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
