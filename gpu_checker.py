@@ -160,7 +160,7 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     # find exit code that was put into stdout when I said `echo $?`
     #shell_output_lines = [line.replace('\n', '') for line in shell_output.split('\n')]
     #shell_output_lines = purge_element(shell_output_lines, '')
-    ssh_exit_code = shell_output.splitlines[-1]
+    ssh_exit_code = shell_output.splitlines()[-1]
 
     success = command_results.success and int(ssh_exit_code) == 0
     return success, command_report
