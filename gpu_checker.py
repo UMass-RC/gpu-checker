@@ -47,10 +47,11 @@ def multiline_str(*argv: str) -> str:
     string = string[0:-1] # remove final newline
     return string
 
-def remove_empty_lines(string_in: str) -> str:
-    lines = [line.strip() for line in string_in.split('\n')]
-    lines = purge_element(lines, '\n') # remove empty lines
-    return '\n'.join(lines)
+def remove_empty_lines(string: str) -> str:
+    #lines = [line.strip() for line in string_in.split('\n')]
+    #lines = purge_element(lines, '\n') # remove empty lines
+    #return '\n'.join(lines) # strip() removes newlines that I want
+    return os.linesep.join([line for line in string.splitlines() if line])
 
 def purge_element(_list: list, elem_to_purge) -> list:
     return list(filter(lambda elem: elem != elem_to_purge, _list))
