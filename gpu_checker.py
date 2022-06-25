@@ -48,9 +48,6 @@ def multiline_str(*argv: str) -> str:
     return string
 
 def remove_empty_lines(string: str) -> str:
-    #lines = [line.strip() for line in string_in.split('\n')]
-    #lines = purge_element(lines, '\n') # remove empty lines
-    #return '\n'.join(lines) # strip() removes newlines that I want
     return os.linesep.join([line for line in string.splitlines() if line])
 
 def purge_element(_list: list, elem_to_purge) -> list:
@@ -122,7 +119,8 @@ def do_check_node(node: str):
 
     command_results = ShellRunner(f"scontrol show node {node}")
     command_output = command_results.shell_output
-    # TODO catch node not found
+    if re.match(r"Node (\S+) not found", command_output):
+        return False
     # scontrol has states delimited by '+'
     states = re.search(r"State=(\S*)", command_output).group(1).split('+')
     for state in states:
@@ -155,16 +153,9 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     ssh_privkey = CONFIG['ssh']['keyfile']
     command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} nvidia-smi && echo $? || echo $?"
     command_results = ShellRunner(command)
-    shell_output = command_results.shell_output
+
     command_report = str(command_results)
-
-    print(shell_output)
-
-    # find exit code that was put into stdout when I said `echo $?`
-    #shell_output_lines = [line.replace('\n', '') for line in shell_output.split('\n')]
-    #shell_output_lines = purge_element(shell_output_lines, '')
-    ssh_exit_code = shell_output.splitlines()[-1]
-
+    ssh_exit_code = command_results.shell_output.splitlines()[-1]
     success = command_results.success and int(ssh_exit_code) == 0
     return success, command_report
 
