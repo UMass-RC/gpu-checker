@@ -47,6 +47,11 @@ def multiline_str(*argv: str) -> str:
     string = string[0:-1] # remove final newline
     return string
 
+def remove_empty_lines(string_in: str) -> str:
+    lines = [line.strip() for line in string_in.split('\n')]
+    lines = purge_element(lines, '\n') # remove empty lines
+    return ''.join(lines)
+
 def purge_element(_list: list, elem_to_purge) -> list:
     return list(filter(lambda elem: elem != elem_to_purge, _list))
 
@@ -63,8 +68,8 @@ class ShellRunner:
             shell=True
         )
         # process.std* returns a bytes object, convert to string
-        self.shell_output = str(process.stdout, 'UTF-8')
-        self.shell_error = str(process.stderr, 'UTF-8')
+        self.shell_output = remove_empty_lines(str(process.stdout, 'UTF-8'))
+        self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
         self.exit_code = process.returncode
         self.success = self.exit_code == 0
         self.command_report = multiline_str(
