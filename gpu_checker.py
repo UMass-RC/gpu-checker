@@ -50,7 +50,7 @@ def multiline_str(*argv: str) -> str:
 def remove_empty_lines(string_in: str) -> str:
     lines = [line.strip() for line in string_in.split('\n')]
     lines = purge_element(lines, '\n') # remove empty lines
-    return ''.join(lines)
+    return '\n'.join(lines)
 
 def purge_element(_list: list, elem_to_purge) -> list:
     return list(filter(lambda elem: elem != elem_to_purge, _list))
