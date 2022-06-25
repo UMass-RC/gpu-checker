@@ -18,6 +18,7 @@ from email.message import EmailMessage
 import configparser
 import os
 import re
+from typing import Tuple
 
 CONFIG_FILE_PATH = '/opt/gpu-checker/secretfile.txt'
 CONFIG = None
@@ -131,7 +132,7 @@ def do_check_node(node: str):
                 do_check = True
     return do_check
 
-def drain_node(node: str, reason: str, do_send_email=True) -> tuple[bool, str]:
+def drain_node(node: str, reason: str, do_send_email=True) -> Tuple[bool, str]:
     """"
     tell slurm to put specified node into DRAINING state
     returns True if it works, false if it doesn't
@@ -144,7 +145,7 @@ def drain_node(node: str, reason: str, do_send_email=True) -> tuple[bool, str]:
     command_report = str(command_results)
     return success, command_report
 
-def check_gpu(node: str, do_send_email=True) -> tuple[bool, str]:
+def check_gpu(node: str, do_send_email=True) -> Tuple[bool, str]:
     """
     ssh into node and run `nvidia-smi`
     returns True if it works, false if it doesn't
