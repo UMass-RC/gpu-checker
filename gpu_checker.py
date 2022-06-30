@@ -242,6 +242,7 @@ if __name__=="__main__":
         # write default empty config file
         CONFIG['nodes'] = {
             "states_to_check" : "mixed,idle",
+            "states_not_to_check" : "drain",
             "partitions_to_check" : "gpu"
         }
         CONFIG['ssh'] = {
