@@ -144,7 +144,7 @@ def find_slurm_nodes(partitions: str) -> None:
 
     return nodes
 
-def do_check_node(node: str, states_to_check: list, states_not_to_check: list):
+def do_check_node(node: str, states_to_check: list, states_not_to_check: list, do_log=True):
     """
     do I want to check this node? Based on node states, states_to_check and states_not_to_check
     if a node has at least one state_to_check, then check
@@ -165,6 +165,8 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list):
         for good_state in states_to_check:
             if state.lower() == good_state.lower():
                 do_check = True
+    if do_log:
+        LOG.info(f"checking node {node}? {do_check}")
     return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
@@ -287,9 +289,7 @@ if __name__=="__main__":
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     while True:
         for node in find_slurm_nodes(partitions):
-            i_do_check = do_check_node(node, states_to_check, states_not_to_check)
-            LOG.info(f"checking node {node}? {i_do_check}")
-            if i_do_check:
+            if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
                     LOG.info(f"{node} works")
