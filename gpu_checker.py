@@ -279,6 +279,9 @@ if __name__=="__main__":
             "max_filesize_MB" : "1024",
             "backup_count" : "1"
         }
+        CONFIG['misc'] = {
+            "post_check_wait_time_s" : "60"
+        }
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
             CONFIG.write(config_file)
@@ -296,6 +299,8 @@ if __name__=="__main__":
         LOG.error(exc_value)
         sys.exit()
     sys.excepthook = my_excepthook
+
+    post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
     states_to_check = CONFIG['nodes']['states_to_check'].split(',')
     states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
@@ -307,7 +312,7 @@ if __name__=="__main__":
             gpu_works, check_report = check_gpu(node)
             if gpu_works:
                 LOG.info(f"{node} works")
-                time.sleep(60)
+                time.sleep(post_check_wait_time_s)
                 continue # next node
             LOG.error(f"{node} doesn't work!")
             #drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
@@ -333,4 +338,4 @@ if __name__=="__main__":
                     full_report
                 )
             # each loop takes about 5 seconds on its own, most of the delay is the ssh command
-            time.sleep(60)
+            time.sleep(post_check_wait_time_s)
