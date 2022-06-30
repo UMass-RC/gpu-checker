@@ -1,13 +1,13 @@
 """
 Simon Leary
-6/24/2022
+6/30/2022
 GPU Checker
 Loops with `sinfo` over nodes that are in both STATES_TO_CHECK and PARTITIONS_TO_CHECK
 ssh's in using SSH_USER and SSH_PRIVKEY_FQN, tries to run `nvidia-smi`
 If that fails in any way, send an email to EMAIL_TO from EMAIL_FROM (and put the node in DRAINING state)***
 It actually sends two emails - one that there's an error and another that it's being put into DRAINING
 
-CONFIG_FILE_PATH contains a cleartext password
+gpu_checker_config.ini contains a cleartext password
     should be excluded from source control!
     should not be readable by any other user!
 """
@@ -19,9 +19,13 @@ import configparser
 import os
 import re
 from typing import Tuple
+import logging
+from logging.handlers import RotatingFileHandler
+import sys
+import traceback
 
-CONFIG_FILE_PATH = '/opt/gpu-checker/secretfile.txt'
 CONFIG = None
+LOG = None
 
 def str_to_bool(string) -> bool:
     if string.lower() in ['true', '1', 't', 'y', 'yes']:
@@ -52,6 +56,41 @@ def remove_empty_lines(string: str) -> str:
 
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
+
+def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
+                max_filesize_MB=1024, backup_count=1, do_print=True,
+                name='gpu_checker') -> logging.Logger:
+    """
+    creates up to 4 log files, each up to size max_filesize_MB
+        info_filename
+        info_filename.1 (backup)
+        error_filename
+        error_filename.1 (backup)
+    """
+    log = logging.getLogger(name)
+
+    if do_print:
+        stream_handler = logging.StreamHandler()
+        log.addHandler(stream_handler)
+
+    file_handler_info = RotatingFileHandler(
+        info_filename,
+        mode='w',
+        maxBytes=max_filesize_MB*1024,
+        backupCount=backup_count)
+    file_handler_info.setLevel(logging.INFO)
+    log.addHandler(file_handler_info)
+
+    file_handler_error = RotatingFileHandler(
+        error_filename,
+        mode='w',
+        maxBytes=max_filesize_MB*1024,
+        backupCount=backup_count)
+    file_handler_error.setLevel(logging.ERROR)
+    log.addHandler(file_handler_error)
+
+    log.setLevel(logging.INFO)
+    return log
 
 class ShellRunner:
     """
@@ -165,15 +204,14 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
         '',
         CONFIG['email']['signature']
     )
-    print(
+    logging.error(multiline_str(
         "sending email:_______________________________________________________________",
         f"to: {to}",
         f"from: {_from}",
         f"subject: {subject}",
         "body:",
         body,
-        sep='\n'
-    )
+    ))
     msg = EmailMessage()
     msg.set_content(body)
     msg['To'] = to
@@ -194,12 +232,12 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     s.send_message(msg)
     s.quit()
 
-    print("email sent successfully!____________________________________________________")
+    logging.info("email sent successfully!____________________________________________________")
 
 if __name__=="__main__":
     CONFIG = configparser.ConfigParser()
-    if os.path.isfile(CONFIG_FILE_PATH):
-        CONFIG.read(CONFIG_FILE_PATH)
+    if os.path.isfile('gpu_checker_config.ini'):
+        CONFIG.read('gpu_checker_config.ini')
     else:
         # write default empty config file
         CONFIG['nodes'] = {
@@ -208,7 +246,7 @@ if __name__=="__main__":
         }
         CONFIG['ssh'] = {
             "user" : "",
-            "keyfile" : ""
+            "keyfile_fqn" : ""
         }
         CONFIG['email'] = {
             "enabled" : "False",
@@ -223,8 +261,25 @@ if __name__=="__main__":
             "password" : "",
             "is_ssl" : "False"
         }
-        with open(CONFIG_FILE_PATH, 'w', encoding='utf-8') as config_file:
+        CONFIG['logger'] = {
+            "info_filename" : "gpu_checker.log",
+            "error_filename" : "gpu_checker_error.log",
+            "max_filesize_MB" : "1024",
+            "backup_count" : "1"
+        }
+        with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             CONFIG.write(config_file)
+
+    LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
+        int(CONFIG['logger']['max_filesize_MB']), int(CONFIG['logger']['backup_count']))
+    # global exception handler write to log file
+    def my_excepthook(exc_type, exc_value, exc_traceback):
+        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
+        exc_lines = [line.strip() for line in exc_lines]
+        for line in exc_lines:
+            LOG.error(line)
+        LOG.error(exc_value)
+    sys.excepthook = my_excepthook
 
     states = CONFIG['nodes']['states_to_check']
     partitions = CONFIG['nodes']['partitions_to_check']
@@ -232,11 +287,11 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions):
-            #print(node, do_check_node(node))
+            #logging.info(node, do_check_node(node))
             if do_check_node(node):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
-                    print(f"{node} works")
+                    logging.info(f"{node} works")
                     continue
                 # if not gpu_works:
                 drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
