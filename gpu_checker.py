@@ -281,7 +281,7 @@ if __name__=="__main__":
         LOG.error(exc_value)
         sys.exit()
     sys.excepthook = my_excepthook
-
+    logging.info("-1")
     states_to_check = CONFIG['nodes']['states_to_check'].split(',')
     states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
