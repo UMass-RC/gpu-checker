@@ -287,9 +287,9 @@ if __name__=="__main__":
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     while True:
         for node in find_slurm_nodes(partitions):
-            LOG.info(node)
-            LOG.info(str(do_check_node(node, states_to_check, states_not_to_check)))
-            if do_check_node(node, states_to_check, states_not_to_check):
+            i_do_check = do_check_node(node, states_to_check, states_not_to_check)
+            LOG.info(f"checking node {node}? {i_do_check}")
+            if i_do_check:
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
                     LOG.info(f"{node} works")
