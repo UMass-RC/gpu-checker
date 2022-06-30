@@ -289,6 +289,7 @@ if __name__=="__main__":
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
             CONFIG.write(config_file)
+        os.chmod('gpu_checker_config.ini', 0o700)
 
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
         int(CONFIG['logger']['max_filesize_MB']), int(CONFIG['logger']['backup_count']))
