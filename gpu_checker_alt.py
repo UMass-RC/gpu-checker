@@ -46,9 +46,6 @@ def indent(string: str, n=1) -> str:
         string = string.replace('\n', '\n\t') # add tab to all other lines
     return string
 
-def multiline_str(*argv: str) -> str:
-    return '\n'.join(argv)
-
 def remove_empty_lines(string: str) -> str:
     return os.linesep.join([line for line in string.splitlines() if line])
 
@@ -107,7 +104,7 @@ class ShellRunner:
         self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
         self.exit_code = process.returncode
         self.success = self.exit_code == 0
-        self.command_report = multiline_str(
+        self.command_report = '\n'.join([
             "command:",
             indent(command),
             f"exit code: {self.exit_code}",
@@ -117,7 +114,7 @@ class ShellRunner:
             '',
             "stderr:",
             indent(self.shell_error),
-        )
+        ])
     def __str__(self):
         return self.command_report
 
@@ -212,19 +209,19 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     """
     send an email using an SMTP server on localhost
     """
-    body = multiline_str(
+    body = '\n'.join([
         body,
         '',
         CONFIG['email']['signature']
-    )
-    LOG.error(multiline_str(
+    ])
+    LOG.error('\n'.join([
         "sending email:_______________________________________________________________",
         f"to: {to}",
         f"from: {_from}",
         f"subject: {subject}",
         "body:",
         body,
-    ))
+    ]))
     msg = EmailMessage()
     msg.set_content(body)
     msg['To'] = to
@@ -313,13 +310,13 @@ if __name__=="__main__":
             #drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
             drain_success, drain_report = False, "didn't drain"
             if do_send_email:
-                full_report = multiline_str(
+                full_report = '\n'.join([
                     "gpu check:",
                     indent(check_report),
                     '',
                     "drain operation:",
                     indent(drain_report)
-                )
+                ])
                 subject = f"gpu-checker has found an error on {node}"
                 if not drain_success:
                     subject = subject + " and FAILED to drain the node"
