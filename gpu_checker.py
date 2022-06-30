@@ -304,7 +304,7 @@ if __name__=="__main__":
     sys.excepthook = my_excepthook
 
     post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
-    states_to_check = CONFIG['nodes']['states_to_check'].split(',')
+    states_to_check = CONFIG['nodes']['states_to_check'].split(',').replace('\n', '')
     states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
