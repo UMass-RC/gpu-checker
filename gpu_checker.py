@@ -286,11 +286,13 @@ if __name__=="__main__":
     states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
-
+    logging.info("0")
     while True:
         for node in find_slurm_nodes(partitions):
+            logging.info("1")
             logging.info(node)
             logging.info(str(do_check_node(node, states_to_check, states_not_to_check)))
+            logging.info("2")
             if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
