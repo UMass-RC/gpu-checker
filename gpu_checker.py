@@ -273,6 +273,7 @@ if __name__=="__main__":
 
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
         int(CONFIG['logger']['max_filesize_MB']), int(CONFIG['logger']['backup_count']))
+    LOG.info("hello, world!")
     # global exception handler write to log file
     def my_excepthook(exc_type, exc_value, exc_traceback):
         exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
