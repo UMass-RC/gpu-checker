@@ -144,15 +144,13 @@ def find_slurm_nodes(partitions: str) -> None:
 
     return nodes
 
-def do_check_node(node: str):
+def do_check_node(node: str, states_to_check: list, states_not_to_check: list):
     """
     do I want to check this node? Based on node states, states_to_check and states_not_to_check
     if a node has at least one state_to_check, then check
     unless it has any state_not_to_check, then instant return False
     """
     do_check = False
-    states_to_check = CONFIG['nodes']['states_to_check'].split(',')
-    states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
 
     command_results = ShellRunner(f"scontrol show node {node}")
     command_output = command_results.shell_output
@@ -284,14 +282,15 @@ if __name__=="__main__":
         sys.exit()
     sys.excepthook = my_excepthook
 
-    states = CONFIG['nodes']['states_to_check']
+    states_to_check = CONFIG['nodes']['states_to_check'].split(',')
+    states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
 
     while True:
         for node in find_slurm_nodes(partitions):
-            logging.info(node, do_check_node(node))
-            if do_check_node(node):
+            logging.info(node + do_check_node(node, states_to_check, states_not_to_check))
+            if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
                     logging.info(f"{node} works")
