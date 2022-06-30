@@ -312,9 +312,9 @@ if __name__=="__main__":
             if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
-                    #LOG.info(f"{node} works")
+                    LOG.info(f"{node} works")
                     continue
-                # if not gpu_works:
+                LOG.info(f"{node} doesn't work!")
                 #drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
                 drain_success, drain_report = False, "didn't drain"
                 if do_send_email:
