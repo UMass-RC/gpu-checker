@@ -266,8 +266,8 @@ if __name__=="__main__":
             "partitions_to_check" : "gpu"
         }
         CONFIG['ssh'] = {
-            "user" : "",
-            "keyfile" : ""
+            "user" : "root",
+            "keyfile" : "/root/.ssh/id_rsa"
         }
         CONFIG['email'] = {
             "enabled" : "False",
