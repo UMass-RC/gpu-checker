@@ -253,7 +253,7 @@ if __name__=="__main__":
             "to" : "",
             "from" : "",
             "signature" : "",
-            "smtp_hostname" : "",
+            "smtp_server" : "",
             "smtp_port" : "",
             "smtp_user" : "",
             "smtp_password" : "",
