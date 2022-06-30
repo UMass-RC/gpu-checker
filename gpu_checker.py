@@ -173,8 +173,10 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
                 do_check = True
                 reasons.append(good_state)
     if do_log:
+        if len(reasons) == 0:
+            reasons = ["no relevant states"]
         reasons_str = ','.join(reasons)
-        LOG.info(f"checking node {node}?\t{do_check} because {reasons_str}")
+        LOG.info(f"checking node {node}?\t\t{do_check} because {reasons_str}")
     return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
