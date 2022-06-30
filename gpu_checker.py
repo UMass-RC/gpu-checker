@@ -289,7 +289,7 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions):
-            #logging.info(node, do_check_node(node))
+            logging.info(node, do_check_node(node))
             if do_check_node(node):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
@@ -317,5 +317,5 @@ if __name__=="__main__":
                         subject,
                         full_report
                     )
-            # each loop takes about 5 seconds on its own, most of the delay is the ssh command
-                time.sleep(60)
+                # each loop takes about 5 seconds on its own, most of the delay is the ssh command
+                    time.sleep(60)
