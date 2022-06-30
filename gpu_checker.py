@@ -6,10 +6,11 @@ Loops with `sinfo` over nodes that are in both STATES_TO_CHECK and PARTITIONS_TO
 ssh's in using SSH_USER and SSH_PRIVKEY_FQN, tries to run `nvidia-smi`
 If that fails in any way, send an email to EMAIL_TO from EMAIL_FROM (and put the node in DRAINING state)***
 It actually sends two emails - one that there's an error and another that it's being put into DRAINING
-
-gpu_checker_config.ini contains a cleartext password
-    should be excluded from source control!
-    should not be readable by any other user!
+"""
+CONFIG_PREPEND = """
+# gpu_checker_config.ini contains a cleartext password
+#     should be excluded from source control!
+#     should not be readable by any other user!
 """
 import subprocess
 import time
@@ -267,6 +268,7 @@ if __name__=="__main__":
             "backup_count" : "1"
         }
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
+            config_file.write(CONFIG_PREPEND)
             CONFIG.write(config_file)
 
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
