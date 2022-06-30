@@ -280,6 +280,7 @@ if __name__=="__main__":
         for line in exc_lines:
             LOG.error(line)
         LOG.error(exc_value)
+        sys.exit()
     sys.excepthook = my_excepthook
 
     states = CONFIG['nodes']['states_to_check']
