@@ -6,6 +6,10 @@ Loops with `sinfo` over nodes that are in both STATES_TO_CHECK and PARTITIONS_TO
 ssh's in using SSH_USER and SSH_PRIVKEY_FQN, tries to run `nvidia-smi`
 If that fails in any way, send an email to EMAIL_TO from EMAIL_FROM (and put the node in DRAINING state)***
 It actually sends two emails - one that there's an error and another that it's being put into DRAINING
+
+todo
+add include and exclude node list
+
 """
 CONFIG_PREPEND = """
 # gpu_checker_config.ini contains a cleartext password
@@ -176,7 +180,7 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
         if len(reasons) == 0:
             reasons = ["no relevant states"]
         reasons_str = ','.join(reasons)
-        LOG.info(f"checking node {node}?\t\t{do_check} because {reasons_str}")
+        LOG.info(f"checking node {node}?\t{do_check} because {reasons_str}")
     return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
@@ -202,8 +206,13 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     command_results = ShellRunner(command)
 
     command_report = str(command_results)
-    ssh_exit_code = command_results.shell_output.splitlines()[-1]
-    success = command_results.success and int(ssh_exit_code) == 0
+
+    # if ssh fails, don't report a bad gpu, raise an excpetion because unable to test
+    if not command_results.success:
+        raise Exception(command_report)
+
+    ssh_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
+    success = (ssh_exit_code == 0)
     return success, command_report
 
 def send_email(to: str, _from: str, subject: str, body: str) -> None:
