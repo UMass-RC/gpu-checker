@@ -202,7 +202,7 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     """
     ssh_user = CONFIG['ssh']['user']
     ssh_privkey = CONFIG['ssh']['keyfile']
-    command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} nvidia-smi && echo $? || echo $?"
+    command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \"nvidia-smi && echo $? || echo $?\""
     command_results = ShellRunner(command)
 
     command_report = str(command_results)
