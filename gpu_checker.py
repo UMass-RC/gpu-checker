@@ -158,10 +158,15 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
         return False
     # scontrol has states delimited by '+'
     states = re.search(r"State=(\S*)", command_output).group(1).split('+')
+    do_break = False
     for state in states:
+        if do_break:
+            break
         for bad_state in states_not_to_check:
             if state.lower() == bad_state.lower():
-                return False
+                do_check = False
+                do_break = True # nested break
+                break
         for good_state in states_to_check:
             if state.lower() == good_state.lower():
                 do_check = True
