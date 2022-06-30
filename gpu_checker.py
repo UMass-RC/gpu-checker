@@ -203,7 +203,7 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
         '',
         CONFIG['email']['signature']
     )
-    logging.error(multiline_str(
+    LOG.error(multiline_str(
         "sending email:_______________________________________________________________",
         f"to: {to}",
         f"from: {_from}",
@@ -231,7 +231,7 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     s.send_message(msg)
     s.quit()
 
-    logging.info("email sent successfully!____________________________________________________")
+    LOG.info("email sent successfully!____________________________________________________")
 
 if __name__=="__main__":
     CONFIG = configparser.ConfigParser()
@@ -281,22 +281,18 @@ if __name__=="__main__":
         LOG.error(exc_value)
         sys.exit()
     sys.excepthook = my_excepthook
-    logging.info("-1")
     states_to_check = CONFIG['nodes']['states_to_check'].split(',')
     states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
     partitions = CONFIG['nodes']['partitions_to_check']
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
-    logging.info("0")
     while True:
         for node in find_slurm_nodes(partitions):
-            logging.info("1")
-            logging.info(node)
-            logging.info(str(do_check_node(node, states_to_check, states_not_to_check)))
-            logging.info("2")
+            LOG.info(node)
+            LOG.info(str(do_check_node(node, states_to_check, states_not_to_check)))
             if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
-                    logging.info(f"{node} works")
+                    LOG.info(f"{node} works")
                     continue
                 # if not gpu_works:
                 drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
