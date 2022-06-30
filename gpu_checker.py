@@ -287,6 +287,9 @@ if __name__=="__main__":
             CONFIG.write(config_file)
         os.chmod('gpu_checker_config.ini', 0o700)
 
+    print(CONFIG['nodes']['states_to_check'])
+
+
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
         int(CONFIG['logger']['max_filesize_MB']), int(CONFIG['logger']['backup_count']))
     LOG.info("hello, world!")
