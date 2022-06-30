@@ -161,11 +161,11 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list):
     for state in states:
         for bad_state in states_not_to_check:
             if state.lower() == bad_state.lower():
-                return False, "test"
+                return False
         for good_state in states_to_check:
             if state.lower() == good_state.lower():
                 do_check = True
-    return do_check, "test"
+    return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
     """"
