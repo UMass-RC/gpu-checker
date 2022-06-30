@@ -289,7 +289,7 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions):
-            logging.info(node + do_check_node(node, states_to_check, states_not_to_check))
+            logging.info(node + str(do_check_node(node, states_to_check, states_not_to_check)))
             if do_check_node(node, states_to_check, states_not_to_check):
                 gpu_works, check_report = check_gpu(node)
                 if gpu_works:
