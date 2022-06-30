@@ -210,7 +210,8 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     # if ssh fails, don't report a bad gpu, raise an excpetion because unable to test
     if not command_results.success:
         raise Exception(command_report)
-    print(command_results.success)
+    print(command_report)
+    quit()
 
     ssh_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
     success = (ssh_exit_code == 0)
