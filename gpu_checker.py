@@ -218,11 +218,11 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     msg['From'] = _from
     msg['Subject'] = subject
 
-    hostname = CONFIG['smtp_auth']['hostname']
-    port = int(CONFIG['smtp_auth']['port'])
-    user = CONFIG['smtp_auth']['user']
-    password = CONFIG['smtp_auth']['password']
-    is_ssl = str_to_bool(CONFIG['smtp_auth']['is_ssl'])
+    hostname = CONFIG['smtp_auth']['smtp_hostname']
+    port = int(CONFIG['smtp_auth']['smtp_port'])
+    user = CONFIG['smtp_auth']['smtp_user']
+    password = CONFIG['smtp_auth']['smtp_password']
+    is_ssl = str_to_bool(CONFIG['smtp_auth']['smtp_is_ssl'])
 
     if is_ssl:
         s = smtplib.SMTP_SSL(hostname, port, timeout=5)
@@ -246,20 +246,18 @@ if __name__=="__main__":
         }
         CONFIG['ssh'] = {
             "user" : "",
-            "keyfile_fqn" : ""
+            "keyfile" : ""
         }
         CONFIG['email'] = {
             "enabled" : "False",
             "to" : "",
             "from" : "",
-            "signature" : ""
-        }
-        CONFIG['smtp_auth'] = {
-            "hostname" : "",
-            "port" : "",
-            "user" : "",
-            "password" : "",
-            "is_ssl" : "False"
+            "signature" : "",
+            "smtp_hostname" : "",
+            "smtp_port" : "",
+            "smtp_user" : "",
+            "smtp_password" : "",
+            "smtp_is_ssl" : "False"
         }
         CONFIG['logger'] = {
             "info_filename" : "gpu_checker.log",
