@@ -151,7 +151,7 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
     unless it has any state_not_to_check, then instant return False
     """
     do_check = False
-
+    reasons = []
     command_results = ShellRunner(f"scontrol show node {node}")
     command_output = command_results.shell_output
     if re.match(r"Node (\S+) not found", command_output):
@@ -165,13 +165,16 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
         for bad_state in states_not_to_check:
             if state.lower() == bad_state.lower():
                 do_check = False
+                reasons = [bad_state] # remove any other reasons listed, only this one matters
                 do_break = True # nested break
                 break
         for good_state in states_to_check:
             if state.lower() == good_state.lower():
                 do_check = True
+                reasons.append(good_state)
     if do_log:
-        LOG.info(f"checking node {node}? {do_check}")
+        reasons_str = ','.join(reasons)
+        LOG.info(f"checking node {node}?\t{do_check} because {reasons_str}")
     return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
