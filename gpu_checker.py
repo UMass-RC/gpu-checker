@@ -308,7 +308,7 @@ if __name__=="__main__":
         CONFIG['logger'] = {
             "info_filename" : "gpu_checker.log",
             "error_filename" : "gpu_checker_error.log",
-            "max_filesize_megabytes" : "1024",
+            "max_filesize_megabytes" : "100",
             "backup_count" : "1"
         }
         CONFIG['misc'] = {
@@ -345,7 +345,8 @@ if __name__=="__main__":
 
     while True:
         for node in find_slurm_nodes(partitions, include_nodes):
-            if not do_check_node(node, states_to_check, states_not_to_check):
+            if not do_check_node(node, states_to_check, states_not_to_check,
+                                 include_nodes, exclude_nodes):
                 continue # next node
             # else:
             gpu_works, check_report = check_gpu(node)
