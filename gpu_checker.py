@@ -25,6 +25,23 @@ import traceback
 CONFIG = None
 LOG = None
 
+def multiline_str(*argv: str) -> str:
+    return '\n'.join(argv)
+
+def remove_empty_lines(string: str) -> str:
+    return os.linesep.join([line for line in string.splitlines() if line])
+
+def purge_element(_list: list, elem_to_purge) -> list:
+    return [elem for elem in _list if elem != elem_to_purge]
+
+def parse_multiline_config_list(string: str) -> list:
+    return [state.strip() for state in string.replace('\n', '').split(',')]
+
+def append_no_dupes(_list: list, elem) -> list:
+    if elem not in _list:
+        _list.append(elem)
+    return _list
+
 def str_to_bool(string) -> bool:
     if string.lower() in ['true', '1', 't', 'y', 'yes']:
         return True
@@ -38,20 +55,6 @@ def indent(string: str, n=1) -> str:
         string = string.replace('\n', '\n\t') # add tab to all other lines
     return string
 
-def multiline_str(*argv: str) -> str:
-    return '\n'.join(argv)
-
-def remove_empty_lines(string: str) -> str:
-    return os.linesep.join([line for line in string.splitlines() if line])
-
-def append_no_dupes(_list: list, elem) -> list:
-    if elem not in _list:
-        _list.append(elem)
-    return _list
-
-def purge_element(_list: list, elem_to_purge) -> list:
-    return [elem for elem in _list if elem != elem_to_purge]
-
 def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
     """
     purge a string from a list
@@ -62,9 +65,6 @@ def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
         return [elem for elem in _list if str(elem).strip() != str_to_purge.strip()]
     else:
         return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
-
-def parse_multiline_config_list(string: str) -> list:
-    return [state.strip() for state in string.replace('\n', '').split(',')]
 
 def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
                 max_filesize_megabytes=1024, backup_count=1, do_print=True,
@@ -135,28 +135,41 @@ class ShellRunner:
     def __str__(self):
         return self.command_report
 
-def find_slurm_nodes(partitions: str, include_nodes=[]) -> None:
+def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
     """"
     return a list of node names that are in the specified partitions
     partitions is a slurm formatted list (comma separated with extra options)
+    partitions can be an empty string, it'll just list the include_nodes
     """
-    command = f"sinfo --partition={partitions} -N --noheader"
-    command_results = ShellRunner(command)
-    success = command_results.success
-    shell_output = command_results.shell_output
-    command_report = str(command_results)
+    if partitions.strip() == '' and purge_element(include_nodes, '') == []:
+        raise Exception("cannot find slurm nodes with no partition list and no include list!")
 
-    if not success:
-        raise Exception(command_report) # barf
+    if partitions.strip() == '':
+        nodes = []
+    else:
+        command = f"sinfo --partition={partitions} -N --noheader"
+        command_results = ShellRunner(command)
+        success = command_results.success
+        shell_output = command_results.shell_output
+        command_report = str(command_results)
+        if not success:
+            raise Exception(command_report) # barf
 
-    nodes = [line.split(' ')[0] for line in shell_output.splitlines()]
-    if len(nodes) == 0:
-        raise Exception(f"no nodes found! `{command}`")
+        # first word before a space on each line
+        nodes = [line.split(' ')[0] for line in shell_output.splitlines()]
+        if len(nodes) == 0:
+            LOG.error(f"no nodes found! `{command}`")
 
     for include_node in include_nodes:
         append_no_dupes(nodes, include_node)
-
-    return purge_str(nodes, '')
+    nodes = purge_str(nodes, '') # remove empty nodes
+    if len(nodes) == 0:
+        LOG.error(multiline_str(
+            "found 0 nodes!"
+            f"partition_list: {partitions}"
+            f"include_nodes: {include_nodes}"
+        ))
+    return nodes
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
                   include_nodes=[], exclude_nodes=[], do_log=True) -> bool:
