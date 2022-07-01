@@ -6,23 +6,25 @@
 
 # node filtering pseudocode
 ```
-nodes = ShellRunner("sinfo --partition={partitions_to_check} -N --noheader")
+nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader")
+
 for node in nodes:
     if do_check_node(node):
         check_node(node)
-def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exclude_nodes,):
+
+def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exclude_nodes):
     do_check = False
     if node in include_nodes : 
         do_check = True
     if node in exclude_nodes :
-        do_check = False
-        break
+        return False
+
     states = find_states(node)
-    if state in states_to_check:
-        do_check = True
-    if state in states_not_to_check:
-        do_check = False
-        break
+    for state in states:
+        if state in states_to_check:
+            do_check = True
+        if state in states_not_to_check:
+            return False
     return do_check
 ```
 
