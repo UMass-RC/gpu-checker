@@ -4,7 +4,21 @@
 * If that fails , drain the node and send an email
 * script should be run as root
 
-# node filtering pseudocode
+# which nodes to check?
+the config options:
+* partitions_to_check
+  * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes
+  * this list makes up the nodes which do_check() is run upon
+* states_to_check
+  * if a node has any of these states, do_check() == True but not until we're sure it isn't excluded in the other config options
+* states_not_to_check 
+  * if a node has any of these states, instant do_check() == False
+* include_nodes
+  * nodes here are added to initial list, and nodes here get instant do_check() == True
+* exclude_nodes
+  * if a node is listed here, instant do_check() == False
+
+node filtering pseudocode:
 ```
 nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader").command_output.splitlines()
 nodes = [node.strip().split(' ')[0] for node in nodes] # first word before space
@@ -84,7 +98,7 @@ smtp_is_ssl = True
 [logger]
 info_filename = gpu_checker.log
 error_filename = gpu_checker_error.log
-max_filesize_megabytes = 1024
+max_filesize_megabytes = 128
 backup_count = 1
 
 [misc]
