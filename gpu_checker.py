@@ -350,6 +350,7 @@ if __name__=="__main__":
                 continue # next node
             # else:
             gpu_works, check_report = check_gpu(node)
+            LOG.info(check_report)
             if gpu_works:
                 LOG.info(f"{node} works")
                 time.sleep(post_check_wait_time_s)
