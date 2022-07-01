@@ -4,18 +4,38 @@
 * If that fails , drain the node and send an email
 * script should be run as root
 
-# how it picks nodes
+# node filtering pseudocode
+```
+nodes = ShellRunner("sinfo --partition={partitions_to_check} -N --noheader")
+for node in nodes:
+    if do_check_node(node):
+        check_node(node)
+def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exclude_nodes,):
+    do_check = False
+    if node in include_nodes : 
+        do_check = True
+    if node in exclude_nodes :
+        do_check = False
+        break
+    states = find_states(node)
+    if state in states_to_check:
+        do_check = True
+    if state in states_not_to_check:
+        do_check = False
+        break
+    return do_check
+```
 
-the following are all config options:
+# logging
+logfile names in config can be absolute or relative to cwd
 
-* partitions to check - the list of nodes from which the other logic decides whether or not to check each node
-  ```
-  sinfo --partition={partitions_to_check} -N --noheader
-  ```
-* include nodes - gets added to the list and do_check = True
-* exclude nodes - gets removed from the list
-* states to check - if any of these are found, do_check = True
-* states not to check - if any of these are found, do_check = False, overwrites all else
+creates up to 4 log files, each up to size max_filesize_MB
+  * info_filename
+  * info_filename.1 (rollover)
+  * error_filename
+  * error_filename.1 (rollover)
+
+info_filename contains all logs, including errors
 
 # sample config file:
 gpu_checker_config.ini will be created (.gitignore and chmod 700) in cwd when the script is run for the first time
