@@ -234,7 +234,7 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     if not command_results.success:
         raise Exception(command_report)
 
-    last_line_output = int(command_results.shell_output.splitlines()[-1].strip())
+    last_line_output = command_results.shell_output.splitlines()[-1].strip()
     success = (last_line_output == "success")
     return success, command_report
 
