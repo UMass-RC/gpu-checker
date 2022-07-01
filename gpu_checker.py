@@ -225,7 +225,7 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     """
     ssh_user = CONFIG['ssh']['user']
     ssh_privkey = CONFIG['ssh']['keyfile']
-    command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \"nvidia-smi && echo success\""
+    command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
     command_results = ShellRunner(command)
 
     command_report = str(command_results)
@@ -234,8 +234,8 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     if not command_results.success:
         raise Exception(command_report)
 
-    last_line_output = command_results.shell_output.splitlines()[-1].strip()
-    success = (last_line_output == "success")
+    ssh_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
+    success = (ssh_exit_code == 0)
     return success, command_report
 
 def send_email(to: str, _from: str, subject: str, body: str) -> None:
