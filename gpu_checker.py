@@ -2,13 +2,8 @@
 Simon Leary
 6/30/2022
 GPU Checker
-Loops with `sinfo` over nodes that are in both STATES_TO_CHECK and PARTITIONS_TO_CHECK
-ssh's in using SSH_USER and SSH_PRIVKEY_FQN, tries to run `nvidia-smi`
-If that fails in any way, send an email to EMAIL_TO from EMAIL_FROM (and put the node in DRAINING state)***
-It actually sends two emails - one that there's an error and another that it's being put into DRAINING
 
 todo
-add include and exclude node list
 logger formatting
 
 """
@@ -52,8 +47,27 @@ def multiline_str(*argv: str) -> str:
 def remove_empty_lines(string: str) -> str:
     return os.linesep.join([line for line in string.splitlines() if line])
 
+def append_no_dupes(_list: list, elem) -> list:
+    if elem not in _list:
+        _list.append(elem)
+    return _list
+
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
+
+def purge_str(_list: list[str], str_to_purge, case_sensitive=True) -> list:
+    """
+    purge a string from a list
+    converts list elements to string and does logic with that
+    strips both the list elements and str_to_purge before comparing
+    """
+    if case_sensitive:
+        return [elem for elem in _list if str(elem).strip() != str_to_purge.strip()]
+    else:
+        return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
+
+def parse_multiline_config_list(string: str):
+    return [state.strip() for state in string.replace('\n', '').split(',')]
 
 def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
                 max_filesize_MB=1024, backup_count=1, do_print=True,
@@ -121,10 +135,10 @@ class ShellRunner:
     def __str__(self):
         return self.command_report
 
-def find_slurm_nodes(partitions: str) -> None:
+def find_slurm_nodes(partitions: str, include_nodes=[]) -> None:
     """"
     return a list of node names that are in the specified partitions
-    partitions is a comma delimited string
+    partitions is a slurm formatted list (comma separated with extra options)
     """
     command = f"sinfo --partition={partitions} -N --noheader"
     command_results = ShellRunner(command)
@@ -139,13 +153,16 @@ def find_slurm_nodes(partitions: str) -> None:
     if len(nodes) == 0:
         raise Exception(f"no nodes found! `{command}`")
 
+    for include_node in include_nodes:
+        append_no_dupes(nodes, include_node)
+
     return nodes
 
-def do_check_node(node: str, states_to_check: list, states_not_to_check: list, do_log=True):
+def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
+                  include_nodes=[], exclude_nodes=[], do_log=True):
     """
-    do I want to check this node? Based on node states, states_to_check and states_not_to_check
-    if a node has at least one state_to_check, then check
-    unless it has any state_not_to_check, then instant return False
+    do I want to check this node?
+    read the readme
     """
     do_check = False
     reasons = []
@@ -159,16 +176,28 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list, d
     for state in states:
         if do_break:
             break
-        for bad_state in states_not_to_check:
-            if state.lower() == bad_state.lower():
+        for include_node in include_nodes:
+            if node.lower() == include_node.lower():
+                do_check = True
+                reasons.append("listed in include_nodes")
+                do_break = True # nested break
+                break
+        for exclude_node in exclude_nodes:
+            if node.lower() == exclude_node.lower():
                 do_check = False
-                reasons = [bad_state] # remove any other reasons listed, only this one matters
+                reasons.append("listed in exclude_nodes")
                 do_break = True # nested break
                 break
         for good_state in states_to_check:
             if state.lower() == good_state.lower():
                 do_check = True
                 reasons.append(good_state)
+        for bad_state in states_not_to_check:
+            if state.lower() == bad_state.lower():
+                do_check = False
+                reasons = [bad_state] # remove any other reasons listed, only this one matters
+                do_break = True # nested break
+                break
     if do_log:
         if len(reasons) == 0:
             reasons = ["no relevant states"]
@@ -238,12 +267,12 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     is_ssl = str_to_bool(CONFIG['smtp_auth']['smtp_is_ssl'])
 
     if is_ssl:
-        s = smtplib.SMTP_SSL(hostname, port, timeout=5)
+        smtp = smtplib.SMTP_SSL(hostname, port, timeout=5)
     else:
-        s = smtplib.SMTP(hostname, port, timeout=5)
-    s.login(user, password)
-    s.send_message(msg)
-    s.quit()
+        smtp = smtplib.SMTP(hostname, port, timeout=5)
+    smtp.login(user, password)
+    smtp.send_message(msg)
+    smtp.quit()
 
     LOG.info("email sent successfully!____________________________________________________")
 
@@ -256,7 +285,9 @@ if __name__=="__main__":
         CONFIG['nodes'] = {
             "states_to_check" : "allocated,mixed,idle",
             "states_not_to_check" : "drain",
-            "partitions_to_check" : "gpu"
+            "partitions_to_check" : "gpu",
+            "include_nodes" : "",
+            "exclude_nodes" : ""
         }
         CONFIG['ssh'] = {
             "user" : "root",
@@ -276,7 +307,7 @@ if __name__=="__main__":
         CONFIG['logger'] = {
             "info_filename" : "gpu_checker.log",
             "error_filename" : "gpu_checker_error.log",
-            "max_filesize_MB" : "1024",
+            "max_filesize_megabytes" : "1024",
             "backup_count" : "1"
         }
         CONFIG['misc'] = {
@@ -303,24 +334,33 @@ if __name__=="__main__":
         sys.exit()
     sys.excepthook = my_excepthook
 
-    post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
-    states_to_check = [state.strip() for state in CONFIG['nodes']['states_to_check'].split(',')]
-    states_not_to_check = CONFIG['nodes']['states_not_to_check'].split(',')
-    partitions = CONFIG['nodes']['partitions_to_check']
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
+    post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
+    states_to_check = parse_multiline_config_list(CONFIG['nodes']['states_to_check'])
+    states_not_to_check = parse_multiline_config_list(CONFIG['nodes']['states_not_to_check'])
+    partitions = CONFIG['nodes']['partitions_to_check']
+    include_nodes = parse_multiline_config_list(CONFIG['nodes']['include_nodes'])
+    exclude_nodes = parse_multiline_config_list(CONFIG['nodes']['exclude_nodes'])
+
     while True:
-        for node in find_slurm_nodes(partitions):
+        for node in find_slurm_nodes(partitions, include_nodes):
             if not do_check_node(node, states_to_check, states_not_to_check):
                 continue # next node
+            # else:
             gpu_works, check_report = check_gpu(node)
             if gpu_works:
                 LOG.info(f"{node} works")
                 time.sleep(post_check_wait_time_s)
                 continue # next node
+            # else:
             LOG.error(f"{node} doesn't work!")
             #drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
             drain_success, drain_report = False, "didn't drain"
             if do_send_email:
+                subject = f"gpu-checker has found an error on {node}"
+                if not drain_success:
+                    subject = subject + " and FAILED to drain the node"
+
                 full_report = multiline_str(
                     "gpu check:",
                     indent(check_report),
@@ -328,15 +368,9 @@ if __name__=="__main__":
                     "drain operation:",
                     indent(drain_report)
                 )
-                subject = f"gpu-checker has found an error on {node}"
-                if not drain_success:
-                    subject = subject + " and FAILED to drain the node"
-
-                email_to = CONFIG['email']['to']
-                email_from = CONFIG['email']['from']
                 send_email(
-                    email_to,
-                    email_from,
+                    CONFIG['email']['to'],
+                    CONFIG['email']['from'],
                     subject,
                     full_report
                 )
