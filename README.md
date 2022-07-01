@@ -14,7 +14,7 @@ for node in nodes:
     if do_check_node(node):
         check_node(node)
 
-def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exclude_nodes):
+def do_check_node(node):
     do_check = False
     
     if node in include_nodes : 
