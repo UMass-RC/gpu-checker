@@ -261,11 +261,11 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     msg['From'] = _from
     msg['Subject'] = subject
 
-    hostname = CONFIG['smtp_auth']['smtp_server']
-    port = int(CONFIG['smtp_auth']['smtp_port'])
-    user = CONFIG['smtp_auth']['smtp_user']
-    password = CONFIG['smtp_auth']['smtp_password']
-    is_ssl = str_to_bool(CONFIG['smtp_auth']['smtp_is_ssl'])
+    hostname = CONFIG['email']['smtp_server']
+    port = int(CONFIG['email']['smtp_port'])
+    user = CONFIG['email']['smtp_user']
+    password = CONFIG['email']['smtp_password']
+    is_ssl = str_to_bool(CONFIG['email']['smtp_is_ssl'])
 
     if is_ssl:
         smtp = smtplib.SMTP_SSL(hostname, port, timeout=5)
