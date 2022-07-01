@@ -70,7 +70,7 @@ def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
         return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
 
 def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
-                max_filesize_megabytes=1024, backup_count=1, do_print=True,
+                max_filesize_megabytes=100, backup_count=1, do_print=True,
                 name='gpu_checker') -> logging.Logger:
     """
     creates up to 4 log files, each up to size max_filesize_megabytes
@@ -89,7 +89,7 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     file_handler_info = RotatingFileHandler(
         info_filename,
         mode='w',
-        maxBytes=max_filesize_megabytes*1024,
+        maxBytes=max_filesize_megabytes*1024*1024,
         backupCount=backup_count)
     file_handler_info.setFormatter(log_formatter)
     file_handler_info.setLevel(logging.INFO)
@@ -98,7 +98,7 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     file_handler_error = RotatingFileHandler(
         error_filename,
         mode='w',
-        maxBytes=max_filesize_megabytes*1024,
+        maxBytes=max_filesize_megabytes*1024*1024,
         backupCount=backup_count)
     file_handler_error.setFormatter(log_formatter)
     file_handler_error.setLevel(logging.ERROR)
