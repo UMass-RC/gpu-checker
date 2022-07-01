@@ -157,7 +157,7 @@ def find_slurm_nodes(partitions: str, include_nodes=[]) -> None:
     for include_node in include_nodes:
         append_no_dupes(nodes, include_node)
 
-    return nodes
+    return purge_str(nodes, '')
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
                   include_nodes=[], exclude_nodes=[], do_log=True):
