@@ -8,6 +8,7 @@
 ```
 nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader").command_output.splitlines()
 nodes = [node.strip().split(' ')[0] for node in nodes] # first word before space
+nodes = nodes + include_nodes
 
 for node in nodes:
     if do_check_node(node):
