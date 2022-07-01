@@ -84,7 +84,7 @@ smtp_is_ssl = True
 [logger]
 info_filename = gpu_checker.log
 error_filename = gpu_checker_error.log
-max_filesize_megabytes = 1024
+max_filesize_megabytes = 128
 backup_count = 1
 
 [misc]
