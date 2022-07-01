@@ -63,7 +63,7 @@ def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
     else:
         return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
 
-def parse_multiline_config_list(string: str):
+def parse_multiline_config_list(string: str) -> list:
     return [state.strip() for state in string.replace('\n', '').split(',')]
 
 def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
@@ -159,7 +159,7 @@ def find_slurm_nodes(partitions: str, include_nodes=[]) -> None:
     return purge_str(nodes, '')
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
-                  include_nodes=[], exclude_nodes=[], do_log=True):
+                  include_nodes=[], exclude_nodes=[], do_log=True) -> bool:
     """
     do I want to check this node?
     read the readme
@@ -169,6 +169,7 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
     command_results = ShellRunner(f"scontrol show node {node}")
     command_output = command_results.shell_output
     if re.match(r"Node (\S+) not found", command_output):
+        LOG.error(command_output)
         return False
     # scontrol has states delimited by '+'
     states = re.search(r"State=(\S*)", command_output).group(1).split('+')
@@ -224,6 +225,8 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     """
     ssh_user = CONFIG['ssh']['user']
     ssh_privkey = CONFIG['ssh']['keyfile']
+    # I have to use single quotes in the ssh command or else $? refers to the environment
+    # on the local machine and not the remote host
     command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
     command_results = ShellRunner(command)
 
@@ -237,14 +240,12 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     success = (ssh_exit_code == 0)
     return success, command_report
 
-def send_email(to: str, _from: str, subject: str, body: str) -> None:
-    """
-    send an email using an SMTP server on localhost
-    """
+def send_email(to: str, _from: str, subject: str, body: str, signature: str,
+               hostname: str, port: int, user: str, password: str, is_ssl: bool) -> None:
     body = multiline_str(
         body,
         '',
-        CONFIG['email']['signature']
+        signature
     )
     LOG.error(multiline_str(
         "sending email:_______________________________________________________________",
@@ -259,12 +260,6 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     msg['To'] = to
     msg['From'] = _from
     msg['Subject'] = subject
-
-    hostname = CONFIG['email']['smtp_server']
-    port = int(CONFIG['email']['smtp_port'])
-    user = CONFIG['email']['smtp_user']
-    password = CONFIG['email']['smtp_password']
-    is_ssl = str_to_bool(CONFIG['email']['smtp_is_ssl'])
 
     if is_ssl:
         smtp = smtplib.SMTP_SSL(hostname, port, timeout=5)
@@ -378,7 +373,13 @@ if __name__=="__main__":
                     CONFIG['email']['to'],
                     CONFIG['email']['from'],
                     subject,
-                    full_report
+                    full_report,
+                    CONFIG['email']['signature'],
+                    CONFIG['email']['smtp_server'],
+                    int(CONFIG['email']['smtp_port']),
+                    CONFIG['email']['smtp_user'],
+                    CONFIG['email']['smtp_password'],
+                    str_to_bool(CONFIG['email']['smtp_is_ssl'])
                 )
             # each loop takes about 5 seconds on its own, most of the delay is the ssh command
             time.sleep(post_check_wait_time_s)
