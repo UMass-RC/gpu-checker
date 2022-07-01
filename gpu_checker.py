@@ -35,7 +35,10 @@ def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
 
 def parse_multiline_config_list(string: str) -> list:
-    return [state.strip() for state in string.replace('\n', '').split(',')]
+    """
+    delete newlines, split by commas, strip each string, remove empty strings
+    """
+    return purge_element([state.strip() for state in string.replace('\n', '').split(',')], '')
 
 def append_no_dupes(_list: list, elem) -> list:
     if elem not in _list:
@@ -66,7 +69,7 @@ def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
     else:
         return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
 
-def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
+def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
                 max_filesize_megabytes=1024, backup_count=1, do_print=True,
                 name='gpu_checker') -> logging.Logger:
     """
@@ -102,6 +105,17 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     log.addHandler(file_handler_error)
 
     log.setLevel(logging.INFO)
+
+    # global exception handler write to log file
+    def my_excepthook(exc_type, exc_value, exc_traceback):
+        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
+        exc_lines = [line.strip() for line in exc_lines]
+        for line in exc_lines:
+            LOG.error(line)
+        LOG.error(exc_value)
+        sys.exit()
+    sys.excepthook = my_excepthook
+
     return log
 
 class ShellRunner:
@@ -284,24 +298,24 @@ def send_email(to: str, _from: str, subject: str, body: str, signature: str,
 
     LOG.info("email sent successfully!____________________________________________________")
 
-if __name__=="__main__":
-    CONFIG = configparser.ConfigParser()
+def init_config():
+    config = configparser.ConfigParser()
     if os.path.isfile('gpu_checker_config.ini'):
-        CONFIG.read('gpu_checker_config.ini')
+        config.read('gpu_checker_config.ini')
     else:
         # write default empty config file
-        CONFIG['nodes'] = {
+        config['nodes'] = {
             "states_to_check" : "allocated,mixed,idle",
             "states_not_to_check" : "drain",
             "partitions_to_check" : "gpu",
             "include_nodes" : "",
             "exclude_nodes" : ""
         }
-        CONFIG['ssh'] = {
+        config['ssh'] = {
             "user" : "root",
             "keyfile" : "/root/.ssh/id_rsa"
         }
-        CONFIG['email'] = {
+        config['email'] = {
             "enabled" : "False",
             "to" : "",
             "from" : "",
@@ -312,33 +326,27 @@ if __name__=="__main__":
             "smtp_password" : "",
             "smtp_is_ssl" : "False"
         }
-        CONFIG['logger'] = {
+        config['logger'] = {
             "info_filename" : "gpu_checker.log",
             "error_filename" : "gpu_checker_error.log",
             "max_filesize_megabytes" : "100",
             "backup_count" : "1"
         }
-        CONFIG['misc'] = {
+        config['misc'] = {
             "post_check_wait_time_s" : "60",
-            "misc" : "do_drain_nodes"
+            "do_drain_nodes" : "False"
         }
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
-            CONFIG.write(config_file)
-        os.chmod('gpu_checker_config.ini', 0o700)
+            config.write(config_file)
+        os.chmod('gpu_checker_config.ini', 0o700) # 0o means octal digits
+    return config
 
-    LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
+if __name__=="__main__":
+    CONFIG = init_config()
+    LOG = init_logger(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
         int(CONFIG['logger']['max_filesize_megabytes']), int(CONFIG['logger']['backup_count']))
     LOG.info("hello, world!")
-    # global exception handler write to log file
-    def my_excepthook(exc_type, exc_value, exc_traceback):
-        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
-        exc_lines = [line.strip() for line in exc_lines]
-        for line in exc_lines:
-            LOG.error(line)
-        LOG.error(exc_value)
-        sys.exit()
-    sys.excepthook = my_excepthook
 
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
