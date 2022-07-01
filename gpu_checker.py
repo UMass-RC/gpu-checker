@@ -261,7 +261,7 @@ def send_email(to: str, _from: str, subject: str, body: str) -> None:
     msg['From'] = _from
     msg['Subject'] = subject
 
-    hostname = CONFIG['smtp_auth']['smtp_hostname']
+    hostname = CONFIG['smtp_auth']['smtp_server']
     port = int(CONFIG['smtp_auth']['smtp_port'])
     user = CONFIG['smtp_auth']['smtp_user']
     password = CONFIG['smtp_auth']['smtp_password']
