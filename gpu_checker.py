@@ -2,10 +2,6 @@
 Simon Leary
 6/30/2022
 GPU Checker
-
-todo
-logger formatting
-
 """
 CONFIG_PREPEND = """
 # gpu_checker_config.ini contains a cleartext password
@@ -81,6 +77,7 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
         error_filename.1 (backup)
     """
     log = logging.getLogger(name)
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 
     if do_print:
         stream_handler = logging.StreamHandler()
@@ -91,6 +88,7 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
         mode='w',
         maxBytes=max_filesize_megabytes*1024,
         backupCount=backup_count)
+    file_handler_info.setFormatter(log_formatter)
     file_handler_info.setLevel(logging.INFO)
     log.addHandler(file_handler_info)
 
@@ -99,6 +97,7 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
         mode='w',
         maxBytes=max_filesize_megabytes*1024,
         backupCount=backup_count)
+    file_handler_error.setFormatter(log_formatter)
     file_handler_error.setLevel(logging.ERROR)
     log.addHandler(file_handler_error)
 
