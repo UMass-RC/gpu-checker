@@ -6,7 +6,8 @@
 
 # node filtering pseudocode
 ```
-nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader")
+nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader").command_output.splitlines()
+nodes = [node.strip().split(' ')[0] for node in nodes] # first word before space
 
 for node in nodes:
     if do_check_node(node):
@@ -14,6 +15,7 @@ for node in nodes:
 
 def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exclude_nodes):
     do_check = False
+    
     if node in include_nodes : 
         do_check = True
     if node in exclude_nodes :
@@ -31,7 +33,7 @@ def do_check_node(node, states_to_check, states_not_to_check, include_nodes, exc
 # logging
 logfile names in config can be absolute or relative to cwd
 
-creates up to 4 log files, each up to size max_filesize_MB
+creates up to 4 log files, each up to size max_filesize_megabytes
   * info_filename
   * info_filename.1 (rollover)
   * error_filename
@@ -81,7 +83,7 @@ smtp_is_ssl = True
 [logger]
 info_filename = gpu_checker.log
 error_filename = gpu_checker_error.log
-max_filesize_mb = 1024
+max_filesize_megabytes = 1024
 backup_count = 1
 
 [misc]
