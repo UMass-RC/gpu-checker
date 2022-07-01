@@ -312,7 +312,8 @@ if __name__=="__main__":
             "backup_count" : "1"
         }
         CONFIG['misc'] = {
-            "post_check_wait_time_s" : "60"
+            "post_check_wait_time_s" : "60",
+            "misc" : "do_drain_nodes"
         }
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
@@ -337,6 +338,8 @@ if __name__=="__main__":
 
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
+    do_drain_nodes = str_to_bool(CONFIG['misc']['do_drain_nodes'])
+    
     states_to_check = parse_multiline_config_list(CONFIG['nodes']['states_to_check'])
     states_not_to_check = parse_multiline_config_list(CONFIG['nodes']['states_not_to_check'])
     partitions = CONFIG['nodes']['partitions_to_check']
@@ -356,8 +359,10 @@ if __name__=="__main__":
                 continue # next node
             # else:
             LOG.error(f"{node} doesn't work!")
-            #drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
-            drain_success, drain_report = False, "didn't drain"
+            if do_drain_nodes:
+                drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
+            else:
+                drain_success, drain_report = False, "drain disabled in config"
             if do_send_email:
                 subject = f"gpu-checker has found an error on {node}"
                 if not drain_success:
