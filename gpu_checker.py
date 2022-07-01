@@ -327,9 +327,6 @@ if __name__=="__main__":
             CONFIG.write(config_file)
         os.chmod('gpu_checker_config.ini', 0o700)
 
-    print(CONFIG['nodes']['states_to_check'])
-
-
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
         int(CONFIG['logger']['max_filesize_megabytes']), int(CONFIG['logger']['backup_count']))
     LOG.info("hello, world!")
@@ -346,7 +343,7 @@ if __name__=="__main__":
     do_send_email = str_to_bool(CONFIG['email']['enabled'])
     post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
     do_drain_nodes = str_to_bool(CONFIG['misc']['do_drain_nodes'])
-    
+
     states_to_check = parse_multiline_config_list(CONFIG['nodes']['states_to_check'])
     states_not_to_check = parse_multiline_config_list(CONFIG['nodes']['states_not_to_check'])
     partitions = CONFIG['nodes']['partitions_to_check']
