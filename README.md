@@ -5,6 +5,8 @@
 * script should be run as root
 
 # which nodes to check?
+any one of the config options are optional by themself, but there must be at least inclusive option to find any nodes of course.
+
 the config options:
 * partitions_to_check
   * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes
@@ -17,33 +19,6 @@ the config options:
   * nodes here are added to initial list, and nodes here get instant do_check() == True
 * exclude_nodes
   * if a node is listed here, instant do_check() == False
-
-node filtering pseudocode:
-```
-nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader").command_output.splitlines()
-nodes = [node.strip().split(' ')[0] for node in nodes] # first word before space
-nodes = nodes + include_nodes
-
-for node in nodes:
-    if do_check_node(node):
-        check_node(node)
-
-def do_check_node(node):
-    do_check = False
-    
-    if node in include_nodes : 
-        do_check = True
-    if node in exclude_nodes :
-        return False
-
-    states = find_states(node)
-    for state in states:
-        if state in states_to_check:
-            do_check = True
-        if state in states_not_to_check:
-            return False
-    return do_check
-```
 
 # logging
 logfile names in config can be absolute or relative to cwd
