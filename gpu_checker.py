@@ -20,6 +20,7 @@ import configparser
 import os
 import re
 from typing import Tuple
+from typing import List
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
@@ -55,7 +56,7 @@ def append_no_dupes(_list: list, elem) -> list:
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
 
-def purge_str(_list: list[str], str_to_purge, case_sensitive=True) -> list:
+def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
     """
     purge a string from a list
     converts list elements to string and does logic with that
