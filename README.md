@@ -9,6 +9,7 @@ the config options:
 * partitions_to_check
   * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes
   * this list makes up the nodes which do_check() is run upon
+  * this is optional
 * states_to_check
   * if a node has any of these states, do_check() == True but not until we're sure it isn't excluded in the other config options
 * states_not_to_check 
