@@ -3,6 +3,7 @@
 * ssh's in and tries to run `nvidia-smi`
 * If that fails , drain the node and send an email
 * script should be run as root
+* don't enable do_drain_nodes until you're confident the script is working as intended
 
 # which nodes to check?
 any one of the config options are optional by themself, but there must be at least inclusive option to find any nodes of course.
