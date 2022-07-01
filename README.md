@@ -79,6 +79,6 @@ backup_count = 1
 
 [misc]
 post_check_wait_time_s = 60
-do_drain_nodes = True
+do_drain_nodes = False
 
 ```
