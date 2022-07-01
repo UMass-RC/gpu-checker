@@ -20,33 +20,6 @@ the config options:
 * exclude_nodes
   * if a node is listed here, instant do_check() == False
 
-node filtering pseudocode:
-```
-nodes = ShellRunner(f"sinfo --partition={partitions_to_check} -N --noheader").command_output.splitlines()
-nodes = [node.strip().split(' ')[0] for node in nodes] # first word before space
-nodes = nodes + include_nodes
-
-for node in nodes:
-    if do_check_node(node):
-        check_node(node)
-
-def do_check_node(node):
-    do_check = False
-    
-    if node in include_nodes : 
-        do_check = True
-    if node in exclude_nodes :
-        return False
-
-    states = find_states(node)
-    for state in states:
-        if state in states_to_check:
-            do_check = True
-        if state in states_not_to_check:
-            return False
-    return do_check
-```
-
 # logging
 logfile names in config can be absolute or relative to cwd
 
