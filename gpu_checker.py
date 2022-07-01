@@ -71,10 +71,10 @@ def parse_multiline_config_list(string: str):
     return [state.strip() for state in string.replace('\n', '').split(',')]
 
 def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
-                max_filesize_MB=1024, backup_count=1, do_print=True,
+                max_filesize_megabytes=1024, backup_count=1, do_print=True,
                 name='gpu_checker') -> logging.Logger:
     """
-    creates up to 4 log files, each up to size max_filesize_MB
+    creates up to 4 log files, each up to size max_filesize_megabytes
         info_filename
         info_filename.1 (backup)
         error_filename
@@ -89,7 +89,7 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     file_handler_info = RotatingFileHandler(
         info_filename,
         mode='w',
-        maxBytes=max_filesize_MB*1024,
+        maxBytes=max_filesize_megabytes*1024,
         backupCount=backup_count)
     file_handler_info.setLevel(logging.INFO)
     log.addHandler(file_handler_info)
@@ -97,7 +97,7 @@ def logger_init(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     file_handler_error = RotatingFileHandler(
         error_filename,
         mode='w',
-        maxBytes=max_filesize_MB*1024,
+        maxBytes=max_filesize_megabytes*1024,
         backupCount=backup_count)
     file_handler_error.setLevel(logging.ERROR)
     log.addHandler(file_handler_error)
@@ -323,7 +323,7 @@ if __name__=="__main__":
 
 
     LOG = logger_init(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
-        int(CONFIG['logger']['max_filesize_MB']), int(CONFIG['logger']['backup_count']))
+        int(CONFIG['logger']['max_filesize_megabytes']), int(CONFIG['logger']['backup_count']))
     LOG.info("hello, world!")
     # global exception handler write to log file
     def my_excepthook(exc_type, exc_value, exc_traceback):
