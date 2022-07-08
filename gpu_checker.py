@@ -234,7 +234,10 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     ssh_privkey = CONFIG['ssh']['keyfile']
     # I have to use single quotes in the ssh command or else $? refers to the environment
     # on the local machine and not the remote host
-    command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
+    if ssh_privkey == '':
+        command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" \'nvidia-smi ; echo $?\'"
+    else:
+        command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
     command_results = ShellRunner(command)
 
     command_report = str(command_results)
