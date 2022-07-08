@@ -40,11 +40,6 @@ def parse_multiline_config_list(string: str) -> list:
     """
     return purge_element([state.strip() for state in string.replace('\n', '').split(',')], '')
 
-def append_no_dupes(_list: list, elem) -> list:
-    if elem not in _list:
-        _list.append(elem)
-    return _list
-
 def str_to_bool(string) -> bool:
     if string.lower() in ['true', '1', 't', 'y', 'yes']:
         return True
@@ -57,17 +52,6 @@ def indent(string: str, n=1) -> str:
         string = '\t' + string # add tab to first line
         string = string.replace('\n', '\n\t') # add tab to all other lines
     return string
-
-def purge_str(_list: List[str], str_to_purge, case_sensitive=True) -> list:
-    """
-    purge a string from a list
-    converts list elements to string and does logic with that
-    strips both the list elements and str_to_purge before comparing
-    """
-    if case_sensitive:
-        return [elem for elem in _list if str(elem).strip() != str_to_purge.strip()]
-    else:
-        return [elem for elem in _list if str(elem).lower().strip() != str_to_purge.lower().strip()]
 
 def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
                 max_filesize_megabytes=100, backup_count=1, do_print=True,
@@ -113,7 +97,7 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
         for line in exc_lines:
             LOG.error(line)
         LOG.error(exc_value)
-        sys.exit()
+        sys.exit(-1)
     sys.excepthook = my_excepthook
 
     return log
@@ -151,17 +135,16 @@ class ShellRunner:
 
 def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
     """"
-    return a list of node names that are in the specified partitions
+    return a set of node names that are in the specified partitions
     partitions is a slurm formatted list (comma separated with extra options)
     partitions can be an empty string, it'll just list the include_nodes
     """
     if partitions.strip() == '' and purge_element(include_nodes, '') == []:
         raise Exception("cannot find slurm nodes with no partition list and no include list!")
 
-    if partitions.strip() == '':
-        nodes = []
-    else:
-        command = f"sinfo --partition={partitions} -N --noheader"
+    nodes = set(include_nodes)
+    if partitions.strip() != '':
+        command = f"sinfo --partition={partitions} -N --noheader -o '%N'"
         command_results = ShellRunner(command)
         success = command_results.success
         shell_output = command_results.shell_output
@@ -169,18 +152,16 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
         if not success:
             raise Exception(command_report) # barf
 
-        # first word before a space on each line
-        nodes = [line.split(' ')[0] for line in shell_output.splitlines()]
-        if len(nodes) == 0:
-            LOG.error(f"no nodes found! `{command}`")
+        # each line of command output is the name of a node
+        nodes.update([line for line in shell_output.splitlines()])
 
-    for include_node in include_nodes:
-        append_no_dupes(nodes, include_node)
-    nodes = purge_str(nodes, '') # remove empty nodes
+        if shell_output.replace('\n','').strip() == '':
+            LOG.error(command_report)
+
     if len(nodes) == 0:
-        LOG.error(multiline_str(
-            "found 0 nodes!"
-            f"partition_list: {partitions}"
+        raise Exception(multiline_str(
+            "found 0 nodes!",
+            f"partition_list: {partitions}",
             f"include_nodes: {include_nodes}"
         ))
     return nodes
@@ -229,8 +210,7 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
     if do_log:
         if len(reasons) == 0:
             reasons = ["no relevant states"]
-        reasons_str = ','.join(reasons)
-        LOG.info(f"checking node {node}?\t{do_check} because {reasons_str}")
+        LOG.info(f"checking node {node}?\t{do_check} because {','.join(reasons)}")
     return do_check
 
 def drain_node(node: str, reason: str) -> Tuple[bool, str]:
