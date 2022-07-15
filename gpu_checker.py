@@ -12,7 +12,6 @@ import configparser
 import os
 import re
 from typing import Tuple
-from typing import List
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
@@ -20,6 +19,9 @@ import traceback
 
 CONFIG = None
 LOG = None
+
+class SshError(Exception):
+    pass
 
 def multiline_str(*argv: str) -> str:
     return '\n'.join(argv)
@@ -223,8 +225,7 @@ def drain_node(node: str, reason: str) -> Tuple[bool, str]:
 def check_gpu(node: str) -> Tuple[bool, str]:
     """
     ssh into node and run `nvidia-smi`
-    returns True if it works, false if it doesn't
-    also returns formatted report of the operation
+    returns tuple(does_gpu_work, check_report)
     """
     ssh_user = CONFIG['ssh']['user']
     ssh_privkey = CONFIG['ssh']['keyfile']
@@ -238,9 +239,9 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     command_report = str(command_results)
     gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
     success = (gpu_check_exit_code == 0)
-    # if ssh fails, we don't know if gpu works
+    # ssh fails rather than command run through ssh fails
     if not command_results.success:
-        success = None
+        raise SshError(command_report)
     return success, command_report
 
 def send_email(to: str, _from: str, subject: str, body: str, signature: str,
@@ -340,12 +341,11 @@ if __name__=="__main__":
                                  include_nodes, exclude_nodes):
                 continue # next node
             # else:
-            gpu_works, check_report = check_gpu(node)
-
-            if gpu_works is None:
-                # "Yes or no confirms or denies a hypothesis. 'Mu' says the answer is beyond the hypothesis."
-                LOG.error("ssh failure!")
-                LOG.error(check_report)
+            try:
+                gpu_works, check_report = check_gpu(node)
+            except SshError as e:
+                LOG.error(f"unable to check node {node}")
+                LOG.error(str(e))
                 time.sleep(post_check_wait_time_s)
                 continue # next node
             if gpu_works:
