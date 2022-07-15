@@ -1,8 +1,4 @@
-"""
-Simon Leary
-6/30/2022
-GPU Checker
-"""
+#!/usr/bin/env python3
 CONFIG_PREPEND = """
 # gpu_checker_config.ini contains a cleartext password
 #     should be excluded from source control!
@@ -239,15 +235,12 @@ def check_gpu(node: str) -> Tuple[bool, str]:
     else:
         command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
     command_results = ShellRunner(command)
-
     command_report = str(command_results)
-
-    # if ssh fails, don't report a bad gpu, raise an excpetion because unable to test
+    gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
+    success = (gpu_check_exit_code == 0)
+    # if ssh fails, we don't know if gpu works
     if not command_results.success:
-        raise Exception(command_report)
-
-    ssh_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
-    success = (ssh_exit_code == 0)
+        success = None
     return success, command_report
 
 def send_email(to: str, _from: str, subject: str, body: str, signature: str,
@@ -322,7 +315,7 @@ def init_config():
         with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
             config.write(config_file)
-        os.chmod('gpu_checker_config.ini', 0o700) # 0o means octal digits
+        os.chmod('gpu_checker_config.ini', 0o600) # 0o means octal digits
     return config
 
 if __name__=="__main__":
@@ -348,6 +341,13 @@ if __name__=="__main__":
                 continue # next node
             # else:
             gpu_works, check_report = check_gpu(node)
+
+            if gpu_works is None:
+                # "Yes or no confirms or denies a hypothesis. 'Mu' says the answer is beyond the hypothesis."
+                LOG.error("ssh failure!")
+                LOG.error(check_report)
+                time.sleep(post_check_wait_time_s)
+                continue # next node
             if gpu_works:
                 LOG.info(f"{node} works")
                 time.sleep(post_check_wait_time_s)
