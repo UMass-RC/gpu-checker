@@ -108,16 +108,22 @@ class ShellRunner:
     and if you use str(your_shell_runner), you get a formatted report of all the above
     """
     def __init__(self, command, timeout_s):
-        process = subprocess.run(
-            command,
-            capture_output=True,
-            shell=True,
-            timeout=timeout_s
-        )
-        # process.std* returns a bytes object, convert to string
-        self.shell_output = remove_empty_lines(str(process.stdout, 'UTF-8'))
-        self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
-        self.exit_code = process.returncode
+        try:
+            process = subprocess.run(
+                command,
+                capture_output=True,
+                shell=True,
+                timeout=timeout_s
+            )
+            # process.std* returns a bytes object, convert to string
+            self.shell_output = remove_empty_lines(str(process.stdout, 'UTF-8'))
+            self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
+            self.exit_code = process.returncode
+        except subprocess.TimeoutExpired as timeout_err:
+            self.shell_output = remove_empty_lines(str(timeout_err.stdout, 'UTF-8'))
+            self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
+            self.exit_code = 1
+
         self.success = self.exit_code == 0
         self.command_report = multiline_str(
             "command:",
