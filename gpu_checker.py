@@ -16,6 +16,7 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import traceback
+import multiprocessing
 
 CONFIG = None
 LOG = None
@@ -106,11 +107,12 @@ class ShellRunner:
     along with a boolean of whether or not the command was a success (exit code 0)
     and if you use str(your_shell_runner), you get a formatted report of all the above
     """
-    def __init__(self, command):
+    def __init__(self, command, timeout_s):
         process = subprocess.run(
             command,
             capture_output=True,
-            shell=True
+            shell=True,
+            timeout=timeout_s
         )
         # process.std* returns a bytes object, convert to string
         self.shell_output = remove_empty_lines(str(process.stdout, 'UTF-8'))
@@ -143,7 +145,7 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
     nodes = set(include_nodes)
     if partitions.strip() != '':
         command = f"sinfo --partition={partitions} -N --noheader -o '%N'"
-        command_results = ShellRunner(command)
+        command_results = ShellRunner(command, 10)
         success = command_results.success
         shell_output = command_results.shell_output
         command_report = str(command_results)
@@ -172,7 +174,7 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
     """
     do_check = False
     reasons = []
-    command_results = ShellRunner(f"scontrol show node {node}")
+    command_results = ShellRunner(f"scontrol show node {node}", 10)
     command_output = command_results.shell_output
     if re.match(r"Node (\S+) not found", command_output):
         LOG.error(command_output)
@@ -217,7 +219,7 @@ def drain_node(node: str, reason: str) -> Tuple[bool, str]:
     returns True if it works, false if it doesn't
     also returns formatted report of the operation
     """
-    command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"")
+    command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"", 10)
     success = command_results.success
     command_report = str(command_results)
     return success, command_report
@@ -235,7 +237,7 @@ def check_gpu(node: str) -> Tuple[bool, str]:
         command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" \'nvidia-smi ; echo $?\'"
     else:
         command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
-    command_results = ShellRunner(command)
+    command_results = ShellRunner(command, 30)
     command_report = str(command_results)
     try:
         gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
