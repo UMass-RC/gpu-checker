@@ -127,7 +127,7 @@ class ShellRunner:
             try:
                 self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
             except TypeError:
-                self.shell_output = ''
+                self.shell_error = ''
             self.exit_code = 1
 
         self.success = self.exit_code == 0
@@ -151,9 +151,6 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
     partitions is a slurm formatted list (comma separated with extra options)
     partitions can be an empty string, it'll just list the include_nodes
     """
-    if partitions.strip() == '' and purge_element(include_nodes, '') == []:
-        raise Exception("cannot find slurm nodes with no partition list and no include list!")
-
     nodes = set(include_nodes)
     if partitions.strip() != '':
         command = f"sinfo --partition={partitions} -N --noheader -o '%N'"
@@ -169,6 +166,15 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
 
         if shell_output.replace('\n','').strip() == '':
             LOG.error(command_report)
+
+        for exclude_node in exclude_nodes:
+            purge_element(nodes, exclude_node)
+        # check for nodes that barely missed exclusion due to capitalization
+        for exclude_node in exclude_nodes:
+            for node in nodes:
+                # is a strip() necessary?
+                if node.lower().strip() == exclude_node.lower().strip():
+                    LOG.warning(f"{node} is similar to excluded node {exclude_node}, but is not excluded")
 
     if len(nodes) == 0:
         raise Exception(multiline_str(
@@ -191,33 +197,31 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
     if re.match(r"Node (\S+) not found", command_output):
         LOG.error(command_output)
         return False
-    # scontrol has states delimited by '+'
-    states = re.search(r"State=(\S*)", command_output).group(1).split('+')
-    do_break = False
-    for state in states:
-        if do_break:
-            break
-        for include_node in include_nodes:
-            if node.lower() == include_node.lower():
-                do_check = True
-                reasons.append("listed in include_nodes")
-                do_break = True # nested break
-                break
-        for exclude_node in exclude_nodes:
-            if node.lower() == exclude_node.lower():
-                do_check = False
-                reasons.append("listed in exclude_nodes")
-                do_break = True # nested break
-                break
-        for good_state in states_to_check:
-            if state.lower() == good_state.lower():
-                do_check = True
-                reasons.append(good_state)
-        for bad_state in states_not_to_check:
-            if state.lower() == bad_state.lower():
-                do_check = False
-                reasons = [bad_state] # remove any other reasons listed, only this one matters
-                do_break = True # nested break
+    # is the node listed in include nodes? If yes, skip all other checks
+    do_skip_node_state_logic = False
+    for include_node in include_nodes:
+        if node.lower() == include_node.lower():
+            do_check = True
+            reasons = ["listed in include_nodes"]
+            do_skip_node_state_logic = True
+    if not do_skip_node_state_logic:
+        # scontrol has states delimited by '+'
+        states = re.search(r"State=(\S*)", command_output).group(1).split('+')
+        do_break = False
+        for state in states:
+            # is the node listed in states to check? If yes, do_check=True and return
+            for good_state in states_to_check:
+                if state.lower() == good_state.lower():
+                    do_check = True
+                    reasons.append(good_state)
+            # is the node listed in states not to check? If yes, do_check=False and return
+            for bad_state in states_not_to_check:
+                if state.lower() == bad_state.lower():
+                    do_check = False
+                    reasons = [bad_state] # overwrite other reasons
+                    do_break = True # nested break
+                    break
+            if do_break: # nested break
                 break
     if do_log:
         if len(reasons) == 0:
