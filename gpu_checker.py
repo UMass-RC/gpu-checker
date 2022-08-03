@@ -120,8 +120,14 @@ class ShellRunner:
             self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
             self.exit_code = process.returncode
         except subprocess.TimeoutExpired as timeout_err:
-            self.shell_output = remove_empty_lines(str(timeout_err.stdout, 'UTF-8'))
-            self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
+            try:
+                self.shell_output = remove_empty_lines(str(timeout_err.stdout, 'UTF-8'))
+            except TypeError:
+                self.shell_output = ''
+            try:
+                self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
+            except TypeError:
+                self.shell_output = ''
             self.exit_code = 1
 
         self.success = self.exit_code == 0
