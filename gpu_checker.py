@@ -16,7 +16,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import traceback
-import multiprocessing
 
 CONFIG = None
 LOG = None
