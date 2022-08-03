@@ -168,7 +168,7 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
 
         for exclude_node in exclude_nodes:
             nodes = purge_element(nodes, exclude_node)
-        3# check for nodes that barely missed exclusion due to capitalization
+        # check for nodes that barely missed exclusion due to capitalization
         for exclude_node in exclude_nodes:
             for node in nodes:
                 # is a strip() necessary?
