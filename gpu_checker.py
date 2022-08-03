@@ -342,52 +342,51 @@ if __name__=="__main__":
     include_nodes = parse_multiline_config_list(CONFIG['nodes']['include_nodes'])
     exclude_nodes = parse_multiline_config_list(CONFIG['nodes']['exclude_nodes'])
 
-    while True:
-        for node in find_slurm_nodes(partitions, include_nodes):
-            if not do_check_node(node, states_to_check, states_not_to_check,
-                                 include_nodes, exclude_nodes):
-                continue # next node
-            # else:
-            try:
-                gpu_works, check_report = check_gpu(node)
-            except SshError as e:
-                LOG.error(f"unable to check node {node}")
-                LOG.error(str(e))
-                time.sleep(post_check_wait_time_s)
-                continue # next node
-            if gpu_works:
-                LOG.info(f"{node} works")
-                time.sleep(post_check_wait_time_s)
-                continue # next node
-            # else:
-            LOG.error(f"{node} doesn't work!")
-            if do_drain_nodes:
-                drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
-            else:
-                drain_success, drain_report = False, "drain disabled in config"
-            if do_send_email:
-                subject = f"gpu-checker has found an error on {node}"
-                if not drain_success:
-                    subject = subject + " and FAILED to drain the node"
-
-                full_report = multiline_str(
-                    "gpu check:",
-                    indent(check_report),
-                    '',
-                    "drain operation:",
-                    indent(drain_report)
-                )
-                send_email(
-                    CONFIG['email']['to'],
-                    CONFIG['email']['from'],
-                    subject,
-                    full_report,
-                    CONFIG['email']['signature'],
-                    CONFIG['email']['smtp_server'],
-                    int(CONFIG['email']['smtp_port']),
-                    CONFIG['email']['smtp_user'],
-                    CONFIG['email']['smtp_password'],
-                    str_to_bool(CONFIG['email']['smtp_is_ssl'])
-                )
-            # each loop takes about 5 seconds on its own, most of the delay is the ssh command
+    for node in find_slurm_nodes(partitions, include_nodes):
+        if not do_check_node(node, states_to_check, states_not_to_check,
+                                include_nodes, exclude_nodes):
+            continue # next node
+        # else:
+        try:
+            gpu_works, check_report = check_gpu(node)
+        except SshError as e:
+            LOG.error(f"unable to check node {node}")
+            LOG.error(str(e))
             time.sleep(post_check_wait_time_s)
+            continue # next node
+        if gpu_works:
+            LOG.info(f"{node} works")
+            time.sleep(post_check_wait_time_s)
+            continue # next node
+        # else:
+        LOG.error(f"{node} doesn't work!")
+        if do_drain_nodes:
+            drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
+        else:
+            drain_success, drain_report = False, "drain disabled in config"
+        if do_send_email:
+            subject = f"gpu-checker has found an error on {node}"
+            if not drain_success:
+                subject = subject + " and FAILED to drain the node"
+
+            full_report = multiline_str(
+                "gpu check:",
+                indent(check_report),
+                '',
+                "drain operation:",
+                indent(drain_report)
+            )
+            send_email(
+                CONFIG['email']['to'],
+                CONFIG['email']['from'],
+                subject,
+                full_report,
+                CONFIG['email']['signature'],
+                CONFIG['email']['smtp_server'],
+                int(CONFIG['email']['smtp_port']),
+                CONFIG['email']['smtp_user'],
+                CONFIG['email']['smtp_password'],
+                str_to_bool(CONFIG['email']['smtp_is_ssl'])
+            )
+        # each loop takes about 5 seconds on its own, most of the delay is the ssh command
+        time.sleep(post_check_wait_time_s)
