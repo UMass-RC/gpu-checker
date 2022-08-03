@@ -126,7 +126,7 @@ class ShellRunner:
             try:
                 self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
             except TypeError:
-                self.shell_error = ''
+                self.shell_error = f'timeout after {timeout_s} seconds!'
             self.exit_code = 1
 
         self.success = self.exit_code == 0
