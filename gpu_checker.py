@@ -167,13 +167,13 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
             LOG.error(command_report)
 
         for exclude_node in exclude_nodes:
-            purge_element(nodes, exclude_node)
+            nodes = purge_element(nodes, exclude_node)
         # check for nodes that barely missed exclusion due to capitalization
         for exclude_node in exclude_nodes:
             for node in nodes:
                 # is a strip() necessary?
                 if node.lower().strip() == exclude_node.lower().strip():
-                    LOG.warning(f"{node} is similar to excluded node {exclude_node}, but is not excluded")
+                    LOG.warning(f"{node} is similar to exclusion '{exclude_node}', but is not excluded")
 
     if len(nodes) == 0:
         raise Exception(multiline_str(
