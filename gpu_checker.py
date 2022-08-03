@@ -237,9 +237,14 @@ def check_gpu(node: str) -> Tuple[bool, str]:
         command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
     command_results = ShellRunner(command)
     command_report = str(command_results)
-    gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
+    try:
+        gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
+    except IndexError: # shell_output has no content
+        return False, command_report
+    except ValueError: # last line is not a number
+        return False, command_report
     success = (gpu_check_exit_code == 0)
-    # ssh fails rather than command run through ssh fails
+    # ShellRunner fails rather than nonzero exit code echo'ed
     if not command_results.success:
         raise SshError(command_report)
     return success, command_report
