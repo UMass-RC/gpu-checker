@@ -181,7 +181,7 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
             f"partition_list: {partitions}",
             f"include_nodes: {include_nodes}"
         ))
-    return nodes
+    return sorted(nodes)
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
                   include_nodes=[], exclude_nodes=[], do_log=True) -> bool:
