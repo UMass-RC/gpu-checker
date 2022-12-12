@@ -415,6 +415,7 @@ def init_config():
             config_file.write(CONFIG_PREPEND)
             config.write(config_file)
         os.chmod(CONFIG_FILE_NAME, 0o600) # 0o means octal digits
+        raise SystemExit()
     return config
 
 if __name__=="__main__":
@@ -490,4 +491,5 @@ if __name__=="__main__":
                 str_to_bool(config['email']['smtp_is_ssl'])
             )
         # each loop takes about 5 seconds on its own, most of the delay is the ssh command
+        LOG.info(f"sleeping {post_check_wait_time_s} seconds...")
         time.sleep(post_check_wait_time_s)
