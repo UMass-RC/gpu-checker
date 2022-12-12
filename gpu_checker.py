@@ -216,10 +216,21 @@ def drain_node(node: str, reason: str) -> Tuple[bool, str]:
     command_report = str(command_results)
     return success, command_report
 
-def check_gpu(node: str, ssh_user: str, key_filename: str) -> Tuple[bool, str, str]:
+def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple[bool, str, str]:
+    """
+    checks that nvidia-smi works, works in a reasonable amount of time,
+    and reports the same number of GPU's that are listed in SLURM_GPU_COUNTS global dict
+
+    0 timeout means never timeout
+
+    returns:
+    - boolean of whether the check passed or not
+    - short (couple words) summary of what happened
+    - complete report of what happened
+    """
     command = "nvidia-smi -L"
-    command_timeout_s = 60
-    command = f"timeout -v {command_timeout_s} " + command
+    if timeout_s > 0:
+        command = f"timeout -v {timeout_s} " + command
     ssh_client = _SSHClient()
     ssh_client.set_missing_host_key_policy(pm.MissingHostKeyPolicy()) # do nothing
     try:
@@ -397,7 +408,8 @@ def init_config():
         }
         config['misc'] = {
             "post_check_wait_time_s" : "60",
-            "do_drain_nodes" : "False"
+            "do_drain_nodes" : "False",
+            "nvidia_smi_timeout_s" : "30",
         }
         with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
@@ -418,6 +430,7 @@ if __name__=="__main__":
     do_send_email = str_to_bool(config['email']['enabled'])
     post_check_wait_time_s = int(config['misc']['post_check_wait_time_s'])
     do_drain_nodes = str_to_bool(config['misc']['do_drain_nodes'])
+    check_timeout_s = int(config['misc']['post_check_wait_time_s'])
 
     states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'])
     states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'])
@@ -426,26 +439,26 @@ if __name__=="__main__":
     include_nodes = parse_multiline_config_list(config['nodes']['include_nodes'])
     exclude_nodes = parse_multiline_config_list(config['nodes']['exclude_nodes'])
 
-    init_gpu_counts()
-
     ssh_user = config['ssh']['user']
     ssh_keyfilename = config['ssh']['keyfilename']
+
+    init_gpu_counts()
 
     for node in find_slurm_nodes(partitions, include_nodes):
         if not do_check_node(node, states_to_check, states_not_to_check,
                                 include_nodes, exclude_nodes):
-            continue # next node
+            continue
         try:
-            gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename)
+            gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
         except SshError as e:
             LOG.error(f"unable to check node {node}")
             LOG.error(str(e))
             time.sleep(post_check_wait_time_s)
-            continue # next node
+            continue
         if gpu_works:
             LOG.info(f"{node} works")
             time.sleep(post_check_wait_time_s)
-            continue # next node
+            continue
         # else:
         LOG.error(f"{node} doesn't work!")
         if do_drain_nodes:
