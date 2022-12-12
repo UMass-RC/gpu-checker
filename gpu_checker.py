@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 CONFIG_PREPEND = """
-# gpu_checker_config.ini contains a cleartext password
+# CONFIG_FILE_NAME contains a cleartext password
 #     should be excluded from source control!
 #     should not be readable by any other user!
 """
+
 import subprocess
 import time
 import smtplib
@@ -16,18 +17,35 @@ import logging
 from logging.handlers import RotatingFileHandler
 import sys
 import traceback
+import paramiko as pm
 
-CONFIG = None
-LOG = None
+CONFIG_FILE_NAME="gpu_checker_config.ini"
+LOG = None # init_logger()
+SLURM_GPU_COUNTS = dict() # init_gpu_counts()
 
 class SshError(Exception):
     pass
 
 def multiline_str(*argv: str) -> str:
-    return '\n'.join(argv)
+    """
+    a string with one line per argument
+    """
+    return os.linesep.join(argv)
+
+def indent(string: str, indenter="    ", num_indents=1) -> str:
+    """
+    add the indenter (default four spaces) to the beginning of each line in the string
+    """
+    for i in range(num_indents):
+        string = indenter + string # first line
+        string = string.replace(os.linesep, os.linesep+indenter) # all other lines
+    return string
 
 def remove_empty_lines(string: str) -> str:
     return os.linesep.join([line for line in string.splitlines() if line])
+
+def count_lines(string: str) -> int:
+    return string.count(os.linesep)+1
 
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
@@ -38,67 +56,27 @@ def parse_multiline_config_list(string: str) -> list:
     """
     return purge_element([state.strip() for state in string.replace('\n', '').split(',')], '')
 
-def str_to_bool(string) -> bool:
+def str_to_bool(string: str) -> bool:
     if string.lower() in ['true', '1', 't', 'y', 'yes']:
         return True
     if string.lower() in ['false', '0', 'f', 'n', 'no']:
         return False
-    return None
+    raise Exception(f"Can't convert {string} to boolean")
 
-def indent(string: str, n=1) -> str:
-    for i in range(n):
-        string = '\t' + string # add tab to first line
-        string = string.replace('\n', '\n\t') # add tab to all other lines
-    return string
-
-def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
-                max_filesize_megabytes=100, backup_count=1, do_print=True,
-                name='gpu_checker') -> logging.Logger:
+class _SSHClient(pm.SSHClient):
     """
-    creates up to 4 log files, each up to size max_filesize_megabytes
-        info_filename
-        info_filename.1 (backup)
-        error_filename
-        error_filename.1 (backup)
+    same as paramiko.SSHClient but it includes a wrapper function _exec_command
     """
-    log = logging.getLogger(name)
-    log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-
-    if do_print:
-        stream_handler = logging.StreamHandler()
-        log.addHandler(stream_handler)
-
-    file_handler_info = RotatingFileHandler(
-        info_filename,
-        mode='w',
-        maxBytes=max_filesize_megabytes*1024*1024,
-        backupCount=backup_count)
-    file_handler_info.setFormatter(log_formatter)
-    file_handler_info.setLevel(logging.INFO)
-    log.addHandler(file_handler_info)
-
-    file_handler_error = RotatingFileHandler(
-        error_filename,
-        mode='w',
-        maxBytes=max_filesize_megabytes*1024*1024,
-        backupCount=backup_count)
-    file_handler_error.setFormatter(log_formatter)
-    file_handler_error.setLevel(logging.ERROR)
-    log.addHandler(file_handler_error)
-
-    log.setLevel(logging.INFO)
-
-    # global exception handler write to log file
-    def my_excepthook(exc_type, exc_value, exc_traceback):
-        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
-        exc_lines = [line.strip() for line in exc_lines]
-        for line in exc_lines:
-            LOG.error(line)
-        LOG.error(exc_value)
-        sys.exit(-1)
-    sys.excepthook = my_excepthook
-
-    return log
+    def _exec_command(self, *argv, encoding="UTF-8") -> Tuple[int, str, str]:
+        """
+        same as exec_command but instead of stdin it returns exit status
+        and stdout/stderr are strings
+        """
+        stdin, stdout, stderr = self.exec_command(*argv)
+        exit_status = stdout.channel.recv_exit_status()
+        stdout = remove_empty_lines(str(stdout.read(), encoding))
+        stderr = remove_empty_lines(str(stderr.read(), encoding))
+        return exit_status, stdout,stderr
 
 class ShellRunner:
     """
@@ -144,15 +122,15 @@ class ShellRunner:
     def __str__(self):
         return self.command_report
 
-def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
+def find_slurm_nodes(partitions='', include_nodes=[]) -> None:
     """"
-    return a set of node names that are in the specified partitions
+    return a list of node names that are in the specified partitions
     partitions is a slurm formatted list (comma separated with extra options)
     partitions can be an empty string, it'll just list the include_nodes
     """
-    nodes = set(include_nodes)
+    nodes = include_nodes
     if partitions.strip() != '':
-        command = f"sinfo --partition={partitions} -N --noheader -o '%N'"
+        command = f"sinfo --partition={partitions} -N --noheader -o '%N' | sort -u"
         command_results = ShellRunner(command, 10)
         success = command_results.success
         shell_output = command_results.shell_output
@@ -160,8 +138,7 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
         if not success:
             raise Exception(command_report) # barf
 
-        # each line of command output is the name of a node
-        nodes.update([line for line in shell_output.splitlines()])
+        nodes = shell_output.splitlines()
 
         if shell_output.replace('\n','').strip() == '':
             LOG.error(command_report)
@@ -181,7 +158,7 @@ def find_slurm_nodes(partitions = '', include_nodes=[]) -> None:
             f"partition_list: {partitions}",
             f"include_nodes: {include_nodes}"
         ))
-    return sorted(nodes)
+    return nodes
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
                   include_nodes=[], exclude_nodes=[], do_log=True) -> bool:
@@ -239,32 +216,49 @@ def drain_node(node: str, reason: str) -> Tuple[bool, str]:
     command_report = str(command_results)
     return success, command_report
 
-def check_gpu(node: str) -> Tuple[bool, str]:
-    """
-    ssh into node and run `nvidia-smi`
-    returns tuple(does_gpu_work, check_report)
-    """
-    ssh_user = CONFIG['ssh']['user']
-    ssh_privkey = CONFIG['ssh']['keyfile']
-    # I have to use single quotes in the ssh command or else $? refers to the environment
-    # on the local machine and not the remote host
-    if ssh_privkey == '':
-        command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" \'nvidia-smi ; echo $?\'"
-    else:
-        command = f"ssh {ssh_user}@{node} -o \"StrictHostKeyChecking=no\" -i {ssh_privkey} \'nvidia-smi ; echo $?\'"
-    command_results = ShellRunner(command, 30)
-    command_report = str(command_results)
+def check_gpu(node: str, ssh_user: str, key_filename: str) -> Tuple[bool, str, str]:
+    command = "nvidia-smi -L"
+    command_timeout_s = 60
+    command = f"timeout -v {command_timeout_s} " + command
+    ssh_client = _SSHClient()
+    ssh_client.set_missing_host_key_policy(pm.MissingHostKeyPolicy()) # do nothing
     try:
-        gpu_check_exit_code = int(command_results.shell_output.splitlines()[-1].strip())
-    except IndexError: # shell_output has no content
-        return False, command_report
-    except ValueError: # last line is not a number
-        return False, command_report
-    success = (gpu_check_exit_code == 0)
-    # ShellRunner fails rather than nonzero exit code echo'ed
-    if not command_results.success:
-        raise SshError(command_report)
-    return success, command_report
+        ssh_client.connect(node, username=ssh_user, key_filename=key_filename)
+    except Exception:
+        full_report = traceback.format_exc()
+        short_summary = "SSH failed to connect"
+        passed = False
+        return passed, short_summary, full_report
+    exit_code, stdout, stderr = ssh_client._exec_command(command)
+    ssh_client.close()
+    full_report = multiline_str(
+        f"command: {command}",
+        f"exit code: {exit_code}",
+        "stdout:",
+        indent(stdout),
+        '',
+        "stderr:",
+        indent(stderr),
+    )
+    short_summary = f"nvidia-smi exit code {exit_code}"
+    passed = (exit_code == 0)
+
+    num_gpus_found = count_lines(stdout)
+    num_gpus_expected = SLURM_GPU_COUNTS[node]
+    if passed & (num_gpus_found != num_gpus_expected):
+        num_gpus_report = multiline_str(
+            f"number of GPU's counted: {num_gpus_found}",
+            f"nummber of GPU's expected based on slurm.conf: {num_gpus_expected}"
+        )
+        short_summary = "wrong number of GPU's"
+        full_report = full_report + '\n' + num_gpus_report
+        passed = False
+    if "Unable to determine the device handle for gpu" in stdout:
+        short_summary = "nvidia-smi device handle error"
+    if "timeout" in stderr:
+        short_summary = "nvidia-smi timeout"
+
+    return passed, short_summary, full_report
 
 def send_email(to: str, _from: str, subject: str, body: str, signature: str,
                hostname: str, port: int, user: str, password: str, is_ssl: bool) -> None:
@@ -297,12 +291,82 @@ def send_email(to: str, _from: str, subject: str, body: str, signature: str,
 
     LOG.info("email sent successfully!____________________________________________________")
 
+def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
+                max_filesize_megabytes=100, backup_count=1, do_print=True,
+                name='gpu_checker') -> logging.Logger:
+    """
+    creates up to 4 log files, each up to size max_filesize_megabytes
+        info_filename
+        info_filename.1 (backup)
+        error_filename
+        error_filename.1 (backup)
+    """
+    log = logging.getLogger(name)
+    log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+
+    if do_print:
+        stream_handler = logging.StreamHandler()
+        log.addHandler(stream_handler)
+
+    file_handler_info = RotatingFileHandler(
+        info_filename,
+        mode='w',
+        maxBytes=max_filesize_megabytes*1024*1024,
+        backupCount=backup_count)
+    file_handler_info.setFormatter(log_formatter)
+    file_handler_info.setLevel(logging.INFO)
+    log.addHandler(file_handler_info)
+
+    file_handler_error = RotatingFileHandler(
+        error_filename,
+        mode='w',
+        maxBytes=max_filesize_megabytes*1024*1024,
+        backupCount=backup_count)
+    file_handler_error.setFormatter(log_formatter)
+    file_handler_error.setLevel(logging.ERROR)
+    log.addHandler(file_handler_error)
+
+    log.setLevel(logging.INFO)
+
+    # global exception handler write to log file
+    def my_excepthook(exc_type, exc_value, exc_traceback):
+        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
+        exc_lines = [line.strip() for line in exc_lines]
+        for line in exc_lines:
+            LOG.error(line)
+        LOG.error(exc_value)
+        sys.exit(-1)
+    sys.excepthook = my_excepthook
+
+    return log
+
+def init_gpu_counts():
+    global SLURM_GPU_COUNTS
+    command = r"sinfo --noheader -N  -o '%N|%G' | sort -u"
+    command_results = ShellRunner(command, 10)
+    command_report = str(command_results)
+    if not command_results.success:
+        raise Exception(command_report) # barf
+    for line in command_results.shell_output.splitlines():
+        node, gres_str = line.split('|')
+        if gres_str=="(null)":
+            SLURM_GPU_COUNTS[node] = 0
+            continue
+        # example gres_str:
+        # "gpu:tesla:2,gpu:kepler:2,mps:400,bandwidth:lustre:no_consume:4G"
+        num_gpus = 0
+        for gres in gres_str.split(','):
+            gres_type,gres_data_str = gres.split(':',1)
+            if gres_type == "gpu":
+                num_gpus += int(gres_data_str.split(':')[-1])
+        SLURM_GPU_COUNTS[node] = num_gpus
+
 def init_config():
     config = configparser.ConfigParser()
-    if os.path.isfile('gpu_checker_config.ini'):
-        config.read('gpu_checker_config.ini')
+    if os.path.isfile(CONFIG_FILE_NAME):
+        config.read(CONFIG_FILE_NAME)
     else:
-        # write default empty config file
+        print(f"config file not found. Creating new one at {CONFIG_FILE_NAME}")
         config['nodes'] = {
             "states_to_check" : "allocated,mixed,idle",
             "states_not_to_check" : "drain",
@@ -312,7 +376,7 @@ def init_config():
         }
         config['ssh'] = {
             "user" : "root",
-            "keyfile" : "/root/.ssh/id_rsa"
+            "keyfilename" : "/root/.ssh/id_rsa"
         }
         config['email'] = {
             "enabled" : "False",
@@ -335,35 +399,44 @@ def init_config():
             "post_check_wait_time_s" : "60",
             "do_drain_nodes" : "False"
         }
-        with open('gpu_checker_config.ini', 'w', encoding='utf-8') as config_file:
+        with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
             config.write(config_file)
-        os.chmod('gpu_checker_config.ini', 0o600) # 0o means octal digits
+        os.chmod(CONFIG_FILE_NAME, 0o600) # 0o means octal digits
     return config
 
 if __name__=="__main__":
-    CONFIG = init_config()
-    LOG = init_logger(CONFIG['logger']['info_filename'], CONFIG['logger']['error_filename'],
-        int(CONFIG['logger']['max_filesize_megabytes']), int(CONFIG['logger']['backup_count']))
+    config = init_config()
+
+    info_filename = config['logger']['info_filename']
+    error_filename = config['logger']['error_filename']
+    max_filesize_megabytes = int(config['logger']['max_filesize_megabytes'])
+    backup_count = int(config['logger']['backup_count'])
+    LOG = init_logger(info_filename, error_filename, max_filesize_megabytes, backup_count)
     LOG.info("hello, world!")
 
-    do_send_email = str_to_bool(CONFIG['email']['enabled'])
-    post_check_wait_time_s = int(CONFIG['misc']['post_check_wait_time_s'])
-    do_drain_nodes = str_to_bool(CONFIG['misc']['do_drain_nodes'])
+    do_send_email = str_to_bool(config['email']['enabled'])
+    post_check_wait_time_s = int(config['misc']['post_check_wait_time_s'])
+    do_drain_nodes = str_to_bool(config['misc']['do_drain_nodes'])
 
-    states_to_check = parse_multiline_config_list(CONFIG['nodes']['states_to_check'])
-    states_not_to_check = parse_multiline_config_list(CONFIG['nodes']['states_not_to_check'])
-    partitions = CONFIG['nodes']['partitions_to_check']
-    include_nodes = parse_multiline_config_list(CONFIG['nodes']['include_nodes'])
-    exclude_nodes = parse_multiline_config_list(CONFIG['nodes']['exclude_nodes'])
+    states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'])
+    states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'])
+    # TODO the other lists use parse_multiline... but this doesnt. why?
+    partitions = config['nodes']['partitions_to_check']
+    include_nodes = parse_multiline_config_list(config['nodes']['include_nodes'])
+    exclude_nodes = parse_multiline_config_list(config['nodes']['exclude_nodes'])
+
+    init_gpu_counts()
+
+    ssh_user = config['ssh']['user']
+    ssh_keyfilename = config['ssh']['keyfilename']
 
     for node in find_slurm_nodes(partitions, include_nodes):
         if not do_check_node(node, states_to_check, states_not_to_check,
                                 include_nodes, exclude_nodes):
             continue # next node
-        # else:
         try:
-            gpu_works, check_report = check_gpu(node)
+            gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename)
         except SshError as e:
             LOG.error(f"unable to check node {node}")
             LOG.error(str(e))
@@ -376,13 +449,13 @@ if __name__=="__main__":
         # else:
         LOG.error(f"{node} doesn't work!")
         if do_drain_nodes:
-            drain_success, drain_report = drain_node(node, 'nvidia-smi failure')
+            drain_success, drain_report = drain_node(node, drain_message)
         else:
             drain_success, drain_report = False, "drain disabled in config"
         if do_send_email:
-            subject = f"gpu-checker has found an error on {node}"
+            subject = f"{node} {drain_message} (gpu-checker)"
             if not drain_success:
-                subject = subject + " and FAILED to drain the node"
+                subject = subject + " (not drained)"
 
             full_report = multiline_str(
                 "gpu check:",
@@ -392,16 +465,16 @@ if __name__=="__main__":
                 indent(drain_report)
             )
             send_email(
-                CONFIG['email']['to'],
-                CONFIG['email']['from'],
+                config['email']['to'],
+                config['email']['from'],
                 subject,
                 full_report,
-                CONFIG['email']['signature'],
-                CONFIG['email']['smtp_server'],
-                int(CONFIG['email']['smtp_port']),
-                CONFIG['email']['smtp_user'],
-                CONFIG['email']['smtp_password'],
-                str_to_bool(CONFIG['email']['smtp_is_ssl'])
+                config['email']['signature'],
+                config['email']['smtp_server'],
+                int(config['email']['smtp_port']),
+                config['email']['smtp_user'],
+                config['email']['smtp_password'],
+                str_to_bool(config['email']['smtp_is_ssl'])
             )
         # each loop takes about 5 seconds on its own, most of the delay is the ssh command
         time.sleep(post_check_wait_time_s)
