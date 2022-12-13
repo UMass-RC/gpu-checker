@@ -409,7 +409,7 @@ def init_config():
         config['misc'] = {
             "post_check_wait_time_s" : "60",
             "do_drain_nodes" : "False",
-            "nvidia_smi_timeout_s" : "30",
+            "check_timeout_s" : "30",
         }
         with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
             config_file.write(CONFIG_PREPEND)
@@ -431,7 +431,7 @@ if __name__=="__main__":
     do_send_email = str_to_bool(config['email']['enabled'])
     post_check_wait_time_s = int(config['misc']['post_check_wait_time_s'])
     do_drain_nodes = str_to_bool(config['misc']['do_drain_nodes'])
-    check_timeout_s = int(config['misc']['post_check_wait_time_s'])
+    check_timeout_s = int(config['misc']['check_timeout_s'])
 
     states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'])
     states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'])
