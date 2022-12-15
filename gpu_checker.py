@@ -219,7 +219,7 @@ def drain_node(node: str, reason: str) -> Tuple[bool, str]:
 def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple[bool, str, str]:
     """
     checks that nvidia-smi works, works in a reasonable amount of time,
-    and reports the same number of GPU's that are listed in SLURM_GPU_COUNTS global dict
+    and reports the same number of GPUs that are listed in SLURM_GPU_COUNTS global dict
 
     0 timeout means never timeout
 
@@ -258,10 +258,10 @@ def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple
     num_gpus_expected = SLURM_GPU_COUNTS[node]
     if passed & (num_gpus_found != num_gpus_expected):
         num_gpus_report = multiline_str(
-            f"number of GPU's counted: {num_gpus_found}",
-            f"nummber of GPU's expected based on slurm.conf: {num_gpus_expected}"
+            f"number of GPUs counted: {num_gpus_found}",
+            f"nummber of GPUs expected based on slurm.conf: {num_gpus_expected}"
         )
-        short_summary = "wrong number of GPU's"
+        short_summary = "wrong number of GPUs"
         full_report = full_report + '\n' + num_gpus_report
         passed = False
     if "Unable to determine the device handle for gpu" in stdout:
