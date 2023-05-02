@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-CONFIG_PREPEND = """
-# CONFIG_FILE_NAME contains a cleartext password
-#     should be excluded from source control!
-#     should not be readable by any other user!
-"""
 
 import subprocess
 import time
@@ -330,7 +325,6 @@ def init_config():
             "check_timeout_s" : "30",
         }
         with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
-            config_file.write(CONFIG_PREPEND)
             config.write(config_file)
         os.chmod(CONFIG_FILE_NAME, 0o600) # 0o means octal digits
         raise SystemExit()
