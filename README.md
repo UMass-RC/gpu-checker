@@ -10,7 +10,7 @@ any one of the config options are optional by themself, but there must be at lea
 
 the config options:
 * partitions_to_check
-  * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes
+  * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes - exclude_nodes
   * this list makes up the nodes which do_check() is run upon
 * states_to_check
   * if a node has any of these states, do_check() == True but not until we're sure it isn't excluded in the other config options
@@ -19,9 +19,13 @@ the config options:
 * include_nodes
   * nodes here are added to initial list, and nodes here get instant do_check() == True
 * exclude_nodes
-  * if a node is listed here, instant do_check() == False
+  * nodes here are not added to initial list
 
 all of the above options are case insensitive!
+
+# email
+* uses `sendmail`
+* If you don't have the `sendmail` command configured, then don't set email enabled=True
 
 # logging
 logfile names in config can be absolute or relative to cwd
@@ -67,11 +71,6 @@ enabled = True
 to = hpc@it.umass.edu
 from = hpc@it.umass.edu
 signature = best, gpu_checker
-smtp_server = mailhub.oit.umass.edu
-smtp_port = 465
-smtp_user = admin
-smtp_password = password
-smtp_is_ssl = True
 
 [logger]
 info_filename = gpu_checker.log
