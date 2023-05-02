@@ -7,8 +7,7 @@ CONFIG_PREPEND = """
 
 import subprocess
 import time
-import smtplib
-from email.message import EmailMessage
+from typing import Tuple
 import configparser
 import os
 import re
@@ -23,14 +22,27 @@ CONFIG_FILE_NAME="gpu_checker_config.ini"
 LOG = None # init_logger()
 SLURM_GPU_COUNTS = dict() # init_gpu_counts()
 
-class SshError(Exception):
-    pass
-
 def multiline_str(*argv: str) -> str:
     """
     a string with one line per argument
     """
     return os.linesep.join(argv)
+
+def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str, str]:
+    process = subprocess.run(command, timeout=timeout_s, capture_output=True,
+                             shell=True, check=True, executable=shell)
+    return str(process.stdout, 'UTF-8').strip(), str(process.stderr, 'UTF-8').strip()
+
+def format_stdout_stderr(stdout: str, stderr: str) -> str:
+    return multiline_str(
+            "stdout:",
+            indent(stdout),
+            "stderr:",
+            indent(stderr)
+        )
+
+def format_subproc_called_proc_error(err: subprocess.CalledProcessError):
+    return format_stdout_stderr(str(err.output, 'UTF-8').strip(), str(err.output, 'UTF-8').strip())
 
 def indent(string: str, indenter="    ", num_indents=1) -> str:
     """
@@ -50,10 +62,12 @@ def count_lines(string: str) -> int:
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
 
-def parse_multiline_config_list(string: str) -> list:
+def parse_multiline_config_list(string: str, do_lowercase=False) -> list:
     """
     delete newlines, split by commas, strip each string, remove empty strings
     """
+    if do_lowercase:
+        string = string.lower()
     return purge_element([state.strip() for state in string.replace('\n', '').split(',')], '')
 
 def str_to_bool(string: str) -> bool:
@@ -61,7 +75,7 @@ def str_to_bool(string: str) -> bool:
         return True
     if string.lower() in ['false', '0', 'f', 'n', 'no']:
         return False
-    raise Exception(f"Can't convert {string} to boolean")
+    raise RuntimeError(f"Can't convert {string} to boolean")
 
 class _SSHClient(pm.SSHClient):
     """
@@ -78,143 +92,63 @@ class _SSHClient(pm.SSHClient):
         stderr = remove_empty_lines(str(stderr.read(), encoding))
         return exit_status, stdout,stderr
 
-class ShellRunner:
-    """
-    spawn this with a shell command, then you have access to stdout, stderr, exit code,
-    along with a boolean of whether or not the command was a success (exit code 0)
-    and if you use str(your_shell_runner), you get a formatted report of all the above
-    """
-    def __init__(self, command, timeout_s):
-        try:
-            process = subprocess.run(
-                command,
-                capture_output=True,
-                shell=True,
-                timeout=timeout_s
-            )
-            # process.std* returns a bytes object, convert to string
-            self.shell_output = remove_empty_lines(str(process.stdout, 'UTF-8'))
-            self.shell_error = remove_empty_lines(str(process.stderr, 'UTF-8'))
-            self.exit_code = process.returncode
-        except subprocess.TimeoutExpired as timeout_err:
-            try:
-                self.shell_output = remove_empty_lines(str(timeout_err.stdout, 'UTF-8'))
-            except TypeError:
-                self.shell_output = ''
-            try:
-                self.shell_error = remove_empty_lines(str(timeout_err.stderr, 'UTF-8'))
-            except TypeError:
-                self.shell_error = f'timeout after {timeout_s} seconds!'
-            self.exit_code = 1
-
-        self.success = self.exit_code == 0
-        self.command_report = multiline_str(
-            "command:",
-            indent(command),
-            f"exit code: {self.exit_code}",
-            '',
-            "stdout:",
-            indent(self.shell_output),
-            '',
-            "stderr:",
-            indent(self.shell_error),
-        )
-    def __str__(self):
-        return self.command_report
-
-def find_slurm_nodes(partitions='', include_nodes=[]) -> None:
+def find_slurm_nodes(partitions='', include_nodes=[], exclude_nodes=[]) -> None:
     """"
     return a list of node names that are in the specified partitions
     partitions is a slurm formatted list (comma separated with extra options)
     partitions can be an empty string, it'll just list the include_nodes
     """
     nodes = include_nodes
-    if partitions.strip() != '':
+    if len(partitions) != 0:
         command = f"sinfo --partition={partitions} -N --noheader -o '%N' | sort -u"
-        command_results = ShellRunner(command, 10)
-        success = command_results.success
-        shell_output = command_results.shell_output
-        command_report = str(command_results)
-        if not success:
-            raise Exception(command_report) # barf
-
-        nodes = shell_output.splitlines()
-
-        if shell_output.replace('\n','').strip() == '':
+        stdout, stderr = shell_command(command, 10)
+        command_report = command + '\n' + format_stdout_stderr(stdout, stderr)
+        if stdout == "":
+            LOG.error("empty output from `sinfo`!")
             LOG.error(command_report)
-
+        nodes = nodes + [x.lower().strip() for x in stdout.splitlines()]
+        nodes = purge_element(nodes, "")
         for exclude_node in exclude_nodes:
             nodes = purge_element(nodes, exclude_node)
-        # check for nodes that barely missed exclusion due to capitalization
-        for exclude_node in exclude_nodes:
-            for node in nodes:
-                # is a strip() necessary?
-                if node.lower().strip() == exclude_node.lower().strip():
-                    LOG.warning(f"included node '{node}' is similar to exclusion '{exclude_node}'")
-
     if len(nodes) == 0:
-        raise Exception(multiline_str(
+        raise RuntimeError(multiline_str(
             "found 0 nodes!",
-            f"partition_list: {partitions}",
+            f"partitions: {partitions}",
             f"include_nodes: {include_nodes}"
         ))
     return nodes
 
 def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
-                  include_nodes=[], exclude_nodes=[], do_log=True) -> bool:
+                  include_nodes=[], do_log=True) -> bool:
     """
     do I want to check this node?
     read the readme
     """
+    if node in include_nodes:
+        LOG.info(f"checking node {node}?\t{True} because it's listed in include_nodes[]")
+        return True
     do_check = False
     reasons = []
-    command_results = ShellRunner(f"scontrol show node {node}", 10)
-    command_output = command_results.shell_output
-    if re.match(r"Node (\S+) not found", command_output):
-        LOG.error(command_output)
+    stdout, stderr = shell_command(f"scontrol show node {node}", 10)
+    if re.match(r"Node (\S+) not found", stdout) or len(stdout)==0:
+        LOG.error(format_stdout_stderr(stdout, stderr))
         return False
-    # is the node listed in include nodes? If yes, skip all other checks
-    do_skip_node_state_logic = False
-    for include_node in include_nodes:
-        if node.lower() == include_node.lower():
+    # scontrol has states delimited by '+'
+    states = re.search(r"State=(\S*)", stdout).group(1).lower().split('+')
+    for state in states:
+        # is the node listed in states to check? If yes, do_check=True and return
+        if state in states_to_check:
+            reasons.append(state)
             do_check = True
-            reasons = ["listed in include_nodes"]
-            do_skip_node_state_logic = True
-    if not do_skip_node_state_logic:
-        # scontrol has states delimited by '+'
-        states = re.search(r"State=(\S*)", command_output).group(1).split('+')
-        do_break = False
-        for state in states:
-            # is the node listed in states to check? If yes, do_check=True and return
-            for good_state in states_to_check:
-                if state.lower() == good_state.lower():
-                    do_check = True
-                    reasons.append(good_state)
-            # is the node listed in states not to check? If yes, do_check=False and return
-            for bad_state in states_not_to_check:
-                if state.lower() == bad_state.lower():
-                    do_check = False
-                    reasons = [bad_state] # overwrite other reasons
-                    do_break = True # nested break
-                    break
-            if do_break: # nested break
-                break
+        if state in states_not_to_check:
+            reasons = [state] # overwrite other reasons
+            do_check = False
+            break
+    if len(reasons) == 0:
+        reasons = ["no relevant states"]
     if do_log:
-        if len(reasons) == 0:
-            reasons = ["no relevant states"]
         LOG.info(f"checking node {node}?\t{do_check} because {','.join(reasons)}")
     return do_check
-
-def drain_node(node: str, reason: str) -> Tuple[bool, str]:
-    """"
-    tell slurm to put specified node into DRAINING state
-    returns True if it works, false if it doesn't
-    also returns formatted report of the operation
-    """
-    command_results = ShellRunner(f"scontrol update nodename={node} state=drain reason=\"{reason}\"", 10)
-    success = command_results.success
-    command_report = str(command_results)
-    return success, command_report
 
 def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple[bool, str, str]:
     """
@@ -238,7 +172,9 @@ def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple
     except Exception:
         full_report = traceback.format_exc()
         short_summary = "SSH failed to connect"
-        passed = False
+        #passed = False
+	    # Let slurm decide when a node is down
+        passed = True
         return passed, short_summary, full_report
     exit_code, stdout, stderr = ssh_client._exec_command(command)
     ssh_client.close()
@@ -251,7 +187,7 @@ def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple
         "stderr:",
         indent(stderr),
     )
-    short_summary = f"nvidia-smi exit code {exit_code}"
+    short_summary = f"nvidia-smi returned {exit_code}"
     passed = (exit_code == 0)
 
     num_gpus_found = count_lines(stdout)
@@ -271,36 +207,23 @@ def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple
 
     return passed, short_summary, full_report
 
-def send_email(to: str, _from: str, subject: str, body: str, signature: str,
-               hostname: str, port: int, user: str, password: str, is_ssl: bool) -> None:
-    body = multiline_str(
-        body,
-        '',
-        signature
-    )
-    LOG.error(multiline_str(
+def send_email(recipient: str, _from: str, subject: str, body: str, signature: str) -> None:
+    LOG.info(multiline_str(
         "sending email:_______________________________________________________________",
-        f"to: {to}",
+        f"to: {recipient}",
         f"from: {_from}",
         f"subject: {subject}",
         "body:",
         body,
+        "",
+        signature
     ))
-    msg = EmailMessage()
-    msg.set_content(body)
-    msg['To'] = to
-    msg['From'] = _from
-    msg['Subject'] = subject
-
-    if is_ssl:
-        smtp = smtplib.SMTP_SSL(hostname, port, timeout=5)
-    else:
-        smtp = smtplib.SMTP(hostname, port, timeout=5)
-    smtp.login(user, password)
-    smtp.send_message(msg)
-    smtp.quit()
-
-    LOG.info("email sent successfully!____________________________________________________")
+    body = body.replace('\n', "\\n")
+    signature = signature.replace('\n', "\\n")
+    cmd = f"echo -e \"From: {_from}\\nSubject :{subject}\\n\\n{body}\\n{signature}\" | sendmail -f {_from} {recipient}"
+    LOG.info(cmd)
+    shell_command(cmd, 30)
+    LOG.info("email sent!")
 
 def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_error.log',
                 max_filesize_megabytes=100, backup_count=1, do_print=True,
@@ -354,11 +277,11 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
 def init_gpu_counts():
     global SLURM_GPU_COUNTS
     command = r"sinfo --noheader -N  -o '%N|%G' | sort -u"
-    command_results = ShellRunner(command, 10)
-    command_report = str(command_results)
-    if not command_results.success:
-        raise Exception(command_report) # barf
-    for line in command_results.shell_output.splitlines():
+    try:
+        stdout, stderr = shell_command(command, 10)
+    except subprocess.CalledProcessError as err:
+        raise RuntimeError(format_subproc_called_proc_error(err)) from err
+    for line in stdout.splitlines():
         node, gres_str = line.split('|')
         if gres_str=="(null)":
             SLURM_GPU_COUNTS[node] = 0
@@ -393,12 +316,7 @@ def init_config():
             "enabled" : "False",
             "to" : "",
             "from" : "",
-            "signature" : "",
-            "smtp_server" : "",
-            "smtp_port" : "",
-            "smtp_user" : "",
-            "smtp_password" : "",
-            "smtp_is_ssl" : "False"
+            "signature" : ""
         }
         config['logger'] = {
             "info_filename" : "gpu_checker.log",
@@ -425,7 +343,7 @@ if __name__=="__main__":
     error_filename = config['logger']['error_filename']
     max_filesize_megabytes = int(config['logger']['max_filesize_megabytes'])
     backup_count = int(config['logger']['backup_count'])
-    LOG = init_logger(info_filename, error_filename, max_filesize_megabytes, backup_count)
+    LOG = init_logger(info_filename.strip(), error_filename.strip(), max_filesize_megabytes, backup_count)
     LOG.info("hello, world!")
 
     do_send_email = str_to_bool(config['email']['enabled'])
@@ -433,25 +351,24 @@ if __name__=="__main__":
     do_drain_nodes = str_to_bool(config['misc']['do_drain_nodes'])
     check_timeout_s = int(config['misc']['check_timeout_s'])
 
-    states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'])
-    states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'])
-    # TODO the other lists use parse_multiline... but this doesnt. why?
-    partitions = config['nodes']['partitions_to_check']
-    include_nodes = parse_multiline_config_list(config['nodes']['include_nodes'])
-    exclude_nodes = parse_multiline_config_list(config['nodes']['exclude_nodes'])
-
-    ssh_user = config['ssh']['user']
-    ssh_keyfilename = config['ssh']['keyfilename']
+    # parse multiline_config_list strips the strings and purges empty strings
+    states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'], do_lowercase=True)
+    states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'], do_lowercase=True)
+    # don't use parse_multiline_config_list because this is supposed to be a string data type not list
+    partitions = config['nodes']['partitions_to_check'].strip()
+    include_nodes = parse_multiline_config_list(config['nodes']['include_nodes'], do_lowercase=True)
+    exclude_nodes = parse_multiline_config_list(config['nodes']['exclude_nodes'], do_lowercase=True)
+    ssh_user = config['ssh']['user'].strip()
+    ssh_keyfilename = config['ssh']['keyfilename'].strip()
 
     init_gpu_counts()
-
-    for node in find_slurm_nodes(partitions, include_nodes):
-        if not do_check_node(node, states_to_check, states_not_to_check,
-                                include_nodes, exclude_nodes):
+    for node in find_slurm_nodes(partitions, include_nodes, exclude_nodes):
+        if not do_check_node(node, states_to_check, states_not_to_check, include_nodes):
             continue
         try:
             gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
-        except SshError as e:
+            gpu_works = False # DELETEME
+        except Exception as e:
             LOG.error(f"unable to check node {node}")
             LOG.error(str(e))
             time.sleep(post_check_wait_time_s)
@@ -460,17 +377,24 @@ if __name__=="__main__":
             LOG.info(f"{node} works")
             time.sleep(post_check_wait_time_s)
             continue
-        # else:
         LOG.error(f"{node} doesn't work!")
         if do_drain_nodes:
-            drain_success, drain_report = drain_node(node, drain_message)
+            try:
+                cmd = f"scontrol update nodename={node} state=drain reason=\"{drain_message}\""
+                stdout, stderr = shell_command(cmd, 10)
+                drain_report = format_stdout_stderr(stdout, stderr)
+                drain_success = True
+            except subprocess.CalledProcessError as err:
+                drain_report = format_subproc_called_proc_error(err)
+                drain_success = False
         else:
-            drain_success, drain_report = False, "drain disabled in config"
+            drain_success = False
+            drain_report = "drain disabled in config"
         if do_send_email:
-            subject = f"{node} {drain_message} (gpu-checker)"
-            if not drain_success:
-                subject = subject + " (not drained)"
-
+            if drain_success:
+                subject = f"{node} drained: {drain_message} (gpu-checker)"
+            else:
+                subject = f"{node} could be drained: {drain_message} (gpu-checker)"
             full_report = multiline_str(
                 "gpu check:",
                 indent(check_report),
@@ -484,11 +408,6 @@ if __name__=="__main__":
                 subject,
                 full_report,
                 config['email']['signature'],
-                config['email']['smtp_server'],
-                int(config['email']['smtp_port']),
-                config['email']['smtp_user'],
-                config['email']['smtp_password'],
-                str_to_bool(config['email']['smtp_is_ssl'])
             )
         # each loop takes about 5 seconds on its own, most of the delay is the ssh command
         LOG.info(f"sleeping {post_check_wait_time_s} seconds...")
