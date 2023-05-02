@@ -234,9 +234,12 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
     log_formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
 
     if do_print:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setLevel(logging.ERROR)
-        log.addHandler(stream_handler)
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        log.addHandler(stdout_handler)
+
+        stderr_handler = logging.StreamHandler(sys.stderr)
+        stderr_handler.setLevel(logging.ERROR)
+        log.addHandler(stderr_handler)
 
     file_handler_info = RotatingFileHandler(
         info_filename,
