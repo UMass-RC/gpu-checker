@@ -67,11 +67,6 @@ enabled = True
 to = hpc@it.umass.edu
 from = hpc@it.umass.edu
 signature = best, gpu_checker
-smtp_server = mailhub.oit.umass.edu
-smtp_port = 465
-smtp_user = admin
-smtp_password = password
-smtp_is_ssl = True
 
 [logger]
 info_filename = gpu_checker.log
