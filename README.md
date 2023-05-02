@@ -10,7 +10,7 @@ any one of the config options are optional by themself, but there must be at lea
 
 the config options:
 * partitions_to_check
-  * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes
+  * the initial list of nodes comes by listing all nodes in given partitions, + include_nodes - exclude_nodes
   * this list makes up the nodes which do_check() is run upon
 * states_to_check
   * if a node has any of these states, do_check() == True but not until we're sure it isn't excluded in the other config options
@@ -19,7 +19,7 @@ the config options:
 * include_nodes
   * nodes here are added to initial list, and nodes here get instant do_check() == True
 * exclude_nodes
-  * if a node is listed here, instant do_check() == False
+  * nodes here are not added to initial list
 
 all of the above options are case insensitive!
 
