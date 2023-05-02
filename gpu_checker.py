@@ -25,8 +25,8 @@ def multiline_str(*argv: str) -> str:
 
 def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str, str]:
     process = subprocess.run(command, timeout=timeout_s, capture_output=True,
-                             shell=True, check=True, executable=shell)
-    return str(process.stdout, 'UTF-8').strip(), str(process.stderr, 'UTF-8').strip()
+                             shell=True, check=True, executable=shell, encoding="UTF-8")
+    return process.stdout.strip(), process.stderr.strip()
 
 def format_stdout_stderr(stdout: str, stderr: str) -> str:
     return multiline_str(
@@ -37,7 +37,7 @@ def format_stdout_stderr(stdout: str, stderr: str) -> str:
         )
 
 def format_subproc_called_proc_error(err: subprocess.CalledProcessError):
-    return format_stdout_stderr(str(err.output, 'UTF-8').strip(), str(err.output, 'UTF-8').strip())
+    return format_stdout_stderr(err.output.strip(), err.output.strip())
 
 def indent(string: str, indenter="    ", num_indents=1) -> str:
     """
