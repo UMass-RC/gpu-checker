@@ -21,6 +21,8 @@ the config options:
 * exclude_nodes
   * if a node is listed here, instant do_check() == False
 
+all of the above options are case insensitive!
+
 # logging
 logfile names in config can be absolute or relative to cwd
 
