@@ -235,6 +235,7 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
 
     if do_print:
         stream_handler = logging.StreamHandler()
+        stream_handler.setLevel(logging.ERROR)
         log.addHandler(stream_handler)
 
     file_handler_info = RotatingFileHandler(
