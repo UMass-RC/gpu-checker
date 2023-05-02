@@ -23,6 +23,10 @@ the config options:
 
 all of the above options are case insensitive!
 
+# email
+* uses `sendmail`
+* If you don't have the `sendmail` command configured, then don't set email enabled=True
+
 # logging
 logfile names in config can be absolute or relative to cwd
 
