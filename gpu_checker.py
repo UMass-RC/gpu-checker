@@ -361,7 +361,6 @@ if __name__=="__main__":
             continue
         try:
             gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
-            gpu_works = False # DELETEME
         except Exception as e:
             LOG.error(f"unable to check node {node}")
             LOG.error(str(e))
