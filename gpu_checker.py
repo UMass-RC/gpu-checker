@@ -228,7 +228,6 @@ def send_email(recipient: str, _from: str, subject: str, body: str, signature: s
     body = body.replace('\n', "\\n")
     signature = signature.replace('\n', "\\n")
     cmd = f"echo -e \"From: {_from}\\nSubject :{subject}\\n\\n{body}\\n{signature}\" | sendmail -f {_from} {recipient}"
-    LOG.info(cmd)
     shell_command(cmd, 30)
     LOG.info("email sent!")
 
