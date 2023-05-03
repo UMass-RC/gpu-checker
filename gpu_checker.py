@@ -176,7 +176,7 @@ def check_gpu(node: str, ssh_user: str, key_filename: str, timeout_s=0) -> Tuple
     ssh_client.set_missing_host_key_policy(pm.MissingHostKeyPolicy()) # do nothing
     try:
         ssh_client.connect(node, username=ssh_user, key_filename=key_filename)
-    except Exception:
+    except (pm.SSHException, pm.AuthenticationException, pm.ChannelException):
         full_report = traceback.format_exc()
         short_summary = "SSH failed to connect"
         #passed = False
@@ -371,13 +371,7 @@ if __name__=="__main__":
     for node in find_slurm_nodes(partitions, include_nodes, exclude_nodes):
         if not do_check_node(node, states_to_check, states_not_to_check, include_nodes):
             continue
-        try:
-            gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
-        except Exception as e:
-            LOG.error(f"unable to check node {node}")
-            LOG.error(str(e))
-            time.sleep(post_check_wait_time_s)
-            continue
+        gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
         if gpu_works:
             LOG.info(f"{node} works")
             time.sleep(post_check_wait_time_s)
