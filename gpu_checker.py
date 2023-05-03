@@ -23,21 +23,34 @@ def multiline_str(*argv: str) -> str:
     """
     return os.linesep.join(argv)
 
+class ShellCommandError(Exception):
+    pass
+
 def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str, str]:
-    process = subprocess.run(command, timeout=timeout_s, capture_output=True,
-                             shell=True, check=True, executable=shell, encoding="UTF-8")
-    return process.stdout.strip(), process.stderr.strip()
-
-def format_stdout_stderr(stdout: str, stderr: str) -> str:
-    return multiline_str(
-            "stdout:",
-            indent(stdout),
-            "stderr:",
-            indent(stderr)
-        )
-
-def format_subproc_called_proc_error(err: subprocess.CalledProcessError):
-    return format_stdout_stderr(err.output.strip(), err.output.strip())
+    try:
+        process = subprocess.run(command, timeout=timeout_s, capture_output=True,
+                                shell=True, check=True, executable=shell, encoding="UTF-8")
+        report = multiline_str(
+                "command:",
+                indent(command),
+                f"return code: {process.returncode}",
+                "stdout:",
+                indent(process.stdout),
+                "stderr:",
+                indent(process.stderr)
+            )
+        return process.stdout.strip(), report
+    except subprocess.CalledProcessError as err:
+        fail_report = multiline_str(
+                "command:",
+                indent(command),
+                f"return code: {err.returncode}",
+                "stdout:",
+                indent(err.stdout),
+                "stderr:",
+                indent(err.stderr)
+            )
+        raise ShellCommandError(fail_report) from err
 
 def indent(string: str, indenter="    ", num_indents=1) -> str:
     """
@@ -96,11 +109,9 @@ def find_slurm_nodes(partitions='', include_nodes=[], exclude_nodes=[]) -> None:
     nodes = include_nodes
     if len(partitions) != 0:
         command = f"sinfo --partition={partitions} -N --noheader -o '%N' | sort -u"
-        stdout, stderr = shell_command(command, 10)
-        command_report = command + '\n' + format_stdout_stderr(stdout, stderr)
+        stdout, command_report = shell_command(command, 10)
         if stdout == "":
-            LOG.error("empty output from `sinfo`!")
-            LOG.error(command_report)
+            raise RuntimeError('\n'.join(["empty output from `sinfo`!", command_report]))
         nodes = nodes + [x.lower().strip() for x in stdout.splitlines()]
         nodes = purge_element(nodes, "")
         for exclude_node in exclude_nodes:
@@ -124,9 +135,10 @@ def do_check_node(node: str, states_to_check: list, states_not_to_check: list,
         return True
     do_check = False
     reasons = []
-    stdout, stderr = shell_command(f"scontrol show node {node}", 10)
-    if re.match(r"Node (\S+) not found", stdout) or len(stdout)==0:
-        LOG.error(format_stdout_stderr(stdout, stderr))
+    try:
+        stdout, command_report = shell_command(f"scontrol show node {node}", 10)
+    except subprocess.CalledProcessError as err:
+        LOG.error(str(err))
         return False
     # scontrol has states delimited by '+'
     states = re.search(r"State=(\S*)", stdout).group(1).lower().split('+')
@@ -276,10 +288,7 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
 def init_gpu_counts():
     global SLURM_GPU_COUNTS
     command = r"sinfo --noheader -N  -o '%N|%G' | sort -u"
-    try:
-        stdout, stderr = shell_command(command, 10)
-    except subprocess.CalledProcessError as err:
-        raise RuntimeError(format_subproc_called_proc_error(err)) from err
+    stdout, command_report = shell_command(command, 10)
     for line in stdout.splitlines():
         node, gres_str = line.split('|')
         if gres_str=="(null)":
@@ -378,11 +387,10 @@ if __name__=="__main__":
         if do_drain_nodes:
             try:
                 cmd = f"scontrol update nodename={node} state=drain reason=\"{drain_message}\""
-                stdout, stderr = shell_command(cmd, 10)
-                drain_report = format_stdout_stderr(stdout, stderr)
+                stdout, drain_report = shell_command(cmd, 10)
                 drain_success = True
             except subprocess.CalledProcessError as err:
-                drain_report = format_subproc_called_proc_error(err)
+                drain_report = str(err)
                 drain_success = False
         else:
             drain_success = False
