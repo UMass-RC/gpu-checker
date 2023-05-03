@@ -6,7 +6,6 @@ from typing import Tuple
 import configparser
 import os
 import re
-from typing import Tuple
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
@@ -17,16 +16,12 @@ CONFIG_FILE_NAME="gpu_checker_config.ini"
 LOG = None # init_logger()
 SLURM_GPU_COUNTS = dict() # init_gpu_counts()
 
-def multiline_str(*argv: str) -> str:
-    """
-    a string with one line per argument
-    """
-    return os.linesep.join(argv)
-
-class ShellCommandError(Exception):
-    pass
 
 def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str, str]:
+    """
+    returns stdout and a full report containing command, return code, stdout, stderr
+    will raise RuntimeError contianing the full report if any part of the command fails
+    """
     command = "set -e; set -o pipefail; " + command
     try:
         process = subprocess.run(command, timeout=timeout_s, capture_output=True,
@@ -51,7 +46,13 @@ def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str,
                 "stderr:",
                 indent(err.stderr)
             )
-        raise ShellCommandError(fail_report) from err
+        raise RuntimeError(fail_report) from err
+
+def multiline_str(*argv: str) -> str:
+    """
+    a string with one line per argument
+    """
+    return os.linesep.join(argv)
 
 def indent(string: str, indenter="    ", num_indents=1) -> str:
     """
