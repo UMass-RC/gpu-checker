@@ -27,6 +27,7 @@ class ShellCommandError(Exception):
     pass
 
 def shell_command(command: str, timeout_s: int, shell="/bin/bash") -> Tuple[str, str]:
+    command = "set -e; set -o pipefail; " + command
     try:
         process = subprocess.run(command, timeout=timeout_s, capture_output=True,
                                 shell=True, check=True, executable=shell, encoding="UTF-8")
