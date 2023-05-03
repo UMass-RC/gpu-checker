@@ -263,12 +263,12 @@ def init_logger(info_filename='gpu_checker.log', error_filename='gpu_checker_err
 
     # global exception handler write to log file
     def my_excepthook(exc_type, exc_value, exc_traceback):
-        exc_lines = traceback.format_exception(exc_type, "", exc_traceback)
-        exc_lines = [line.strip() for line in exc_lines]
-        for line in exc_lines:
+        traceback_lines = [line.strip() for line in traceback.format_tb(exc_traceback)]
+        LOG.error(f"exception type: {exc_type.__name__}")
+        for line in traceback_lines:
             LOG.error(line)
-        LOG.error(exc_value)
-        sys.exit(-1)
+        LOG.error(f"exception value: {exc_value}")
+        sys.exit(1)
     sys.excepthook = my_excepthook
 
     return log
