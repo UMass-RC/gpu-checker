@@ -72,11 +72,11 @@ def count_lines(string: str) -> int:
 def purge_element(_list: list, elem_to_purge) -> list:
     return [elem for elem in _list if elem != elem_to_purge]
 
-def parse_multiline_config_list(string: str, do_lowercase=False) -> list:
+def parse_config_list(string: str, lowercase=False) -> list:
     """
     delete newlines, split by commas, strip each string, remove empty strings
     """
-    if do_lowercase:
+    if lowercase:
         string = string.lower()
     return purge_element([state.strip() for state in string.replace('\n', '').split(',')], '')
 
@@ -229,7 +229,8 @@ def send_email(recipient: str, _from: str, subject: str, body: str, signature: s
     ))
     body = body.replace('\n', "\\n")
     signature = signature.replace('\n', "\\n")
-    cmd = f"echo -e \"From: {_from}\\nSubject :{subject}\\n\\n{body}\\n{signature}\" | /usr/sbin/sendmail -f {_from} {recipient}"
+    cmd = f"echo -e \"From: {_from}\\nSubject :{subject}\\n\\n{body}\\n{signature}\" |\
+        /usr/sbin/sendmail -f {_from} {recipient}"
     shell_command(cmd, 30)
     LOG.info("email sent!")
 
@@ -365,12 +366,12 @@ if __name__=="__main__":
     check_timeout_s = int(config['misc']['check_timeout_s'])
 
     # parse multiline_config_list strips the strings and purges empty strings
-    states_to_check = parse_multiline_config_list(config['nodes']['states_to_check'], do_lowercase=True)
-    states_not_to_check = parse_multiline_config_list(config['nodes']['states_not_to_check'], do_lowercase=True)
-    # don't use parse_multiline_config_list because this is supposed to be a string data type not list
+    states_to_check = parse_config_list(config['nodes']['states_to_check'], lowercase=True)
+    states_not_to_check = parse_config_list(config['nodes']['states_not_to_check'], lowercase=True)
+    # don't use parse_config_list because this is supposed to be a string data type not list
     partitions = config['nodes']['partitions_to_check'].strip()
-    include_nodes = parse_multiline_config_list(config['nodes']['include_nodes'], do_lowercase=True)
-    exclude_nodes = parse_multiline_config_list(config['nodes']['exclude_nodes'], do_lowercase=True)
+    include_nodes = parse_config_list(config['nodes']['include_nodes'], lowercase=True)
+    exclude_nodes = parse_config_list(config['nodes']['exclude_nodes'], lowercase=True)
     ssh_user = config['ssh']['user'].strip()
     ssh_keyfilename = config['ssh']['keyfilename'].strip()
 
@@ -378,7 +379,8 @@ if __name__=="__main__":
     for node in find_slurm_nodes(partitions, include_nodes, exclude_nodes):
         if not do_check_node(node, states_to_check, states_not_to_check, include_nodes):
             continue
-        gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename, timeout_s=check_timeout_s)
+        gpu_works, drain_message, check_report = check_gpu(node, ssh_user, ssh_keyfilename,
+                                                           timeout_s=check_timeout_s)
         if gpu_works:
             LOG.info(f"{node} works")
             time.sleep(post_check_wait_time_s)
