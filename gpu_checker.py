@@ -334,12 +334,13 @@ def init_config():
             "info_filename" : "gpu_checker.log",
             "error_filename" : "gpu_checker_error.log",
             "max_filesize_megabytes" : "100",
-            "backup_count" : "1"
+            "backup_count" : "1",
+            "do_print_stdout_stderr" : "True"
         }
         config['misc'] = {
             "post_check_wait_time_s" : "60",
             "do_drain_nodes" : "False",
-            "check_timeout_s" : "30",
+            "check_timeout_s" : "30"
         }
         with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
             config.write(config_file)
@@ -354,7 +355,9 @@ if __name__=="__main__":
     error_filename = config['logger']['error_filename']
     max_filesize_megabytes = int(config['logger']['max_filesize_megabytes'])
     backup_count = int(config['logger']['backup_count'])
-    LOG = init_logger(info_filename.strip(), error_filename.strip(), max_filesize_megabytes, backup_count)
+    do_print_stdout_stderr = str_to_bool(config['logger']['do_print_stdout_stderr'])
+    LOG = init_logger(info_filename.strip(), error_filename.strip(), max_filesize_megabytes,
+                      backup_count, do_print=do_print_stdout_stderr)
     LOG.info("hello, world!")
 
     do_send_email = str_to_bool(config['email']['enabled'])
