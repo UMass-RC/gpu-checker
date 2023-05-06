@@ -344,7 +344,6 @@ def init_config():
         }
         with open(CONFIG_FILE_NAME, 'w', encoding='utf-8') as config_file:
             config.write(config_file)
-        os.chmod(CONFIG_FILE_NAME, 0o600) # 0o means octal digits
         raise SystemExit()
     return config
 
